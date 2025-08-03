@@ -147,13 +147,15 @@ if authentication_status:
 
     # 2. AGGIUNGI NUOVA OPERAZIONE (LOGICA CORRETTA E ROBUSTA)
     st.header("Aggiungi Nuova Operazione")
-    with st.form("new_op_form", border=True):
+    # CORREZIONE: Usiamo clear_on_submit=True per resettare il form in modo idiomatico
+    with st.form("new_op_form", border=True, clear_on_submit=True):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             op_date = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
         with col2:
             op_ticker = st.text_input("Ticker", placeholder="es. SPY").upper()
         with col3:
+            # La chiave qui è fondamentale per poter leggere lo stato
             op_type = st.selectbox("Tipo Operazione", ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"], key="op_type_selector")
         with col4:
             op_notes = st.text_input("Note")
@@ -176,13 +178,12 @@ if authentication_status:
             if not op_ticker:
                 st.error("Il campo Ticker è obbligatorio.")
             else:
-                # CORREZIONE: Recupera i valori da st.session_state usando le chiavi
-                # Questo garantisce che vengano letti i dati corretti al momento del submit.
+                # Recupera i valori da st.session_state usando le chiavi
                 op_type_submitted = st.session_state.op_type_selector
-                premio_incassato_val = st.session_state.get("premio_incassato_input", 0.0) if op_type_submitted == "Incasso Premio" else 0.0
-                premio_reinvestito_val = st.session_state.get("premio_reinvestito_input", 0.0) if op_type_submitted == "Reinvestimento Premio" else 0.0
-                btd_standard_val = st.session_state.get("btd_standard_input", 0.0) if op_type_submitted == "Investimento BTD" else 0.0
-                btd_boost_val = st.session_state.get("btd_boost_input", 0.0) if op_type_submitted == "Investimento BTD" else 0.0
+                premio_incassato_val = st.session_state.get("premio_incassato_input", 0.0)
+                premio_reinvestito_val = st.session_state.get("premio_reinvestito_input", 0.0)
+                btd_standard_val = st.session_state.get("btd_standard_input", 0.0)
+                btd_boost_val = st.session_state.get("btd_boost_input", 0.0)
                 
                 # Costruzione del dizionario con i dati corretti
                 new_op_data = {
@@ -190,10 +191,11 @@ if authentication_status:
                     'date': pd.to_datetime(op_date), 
                     'ticker': op_ticker,
                     'type': op_type_submitted, 
-                    'premioIncassato': premio_incassato_val,
-                    'premioReinvestito': premio_reinvestito_val,
-                    'btdStandard': btd_standard_val,
-                    'btdBoost': btd_boost_val,
+                    # Assicura che solo il valore corretto venga salvato
+                    'premioIncassato': premio_incassato_val if op_type_submitted == "Incasso Premio" else 0.0,
+                    'premioReinvestito': premio_reinvestito_val if op_type_submitted == "Reinvestimento Premio" else 0.0,
+                    'btdStandard': btd_standard_val if op_type_submitted == "Investimento BTD" else 0.0,
+                    'btdBoost': btd_boost_val if op_type_submitted == "Investimento BTD" else 0.0,
                     'notes': op_notes
                 }
                 
@@ -201,13 +203,10 @@ if authentication_status:
                 updated_df = pd.concat([all_data_df, new_op_df], ignore_index=True)
                 dm.save_all_data(worksheet, updated_df)
                 
-                # Resetta i valori degli input nel session_state
-                for key in ["premio_incassato_input", "premio_reinvestito_input", "btd_standard_input", "btd_boost_input"]:
-                    if key in st.session_state:
-                        st.session_state[key] = 0.0
-
                 st.success("Operazione registrata con successo!")
-                st.rerun()
+                # CORREZIONE: Rimosso il loop di reset manuale e st.rerun().
+                # clear_on_submit=True gestirà il reset del form.
+                st.rerun() # Aggiunto di nuovo per forzare l'aggiornamento immediato della dashboard
 
     # 3. REGISTRO OPERAZIONI CON CANCELLAZIONE
     st.header("Registro Operazioni")
