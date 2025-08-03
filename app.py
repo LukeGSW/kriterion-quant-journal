@@ -46,7 +46,6 @@ def load_css():
             tbody tr:hover {
                 background-color: var(--slate-50) !important;
             }
-            /* Nasconde il menu di Streamlit e il footer */
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
@@ -70,15 +69,10 @@ else:
 
 # --- AUTENTICAZIONE ---
 try:
-    # Creiamo una copia modificabile della configurazione letta dai secrets.
-    # Il parametro 'preauthorized' è stato rimosso perché deprecato.
     config = {
         'credentials': dict(st.secrets['credentials']),
         'cookies': dict(st.secrets['cookies'])
     }
-
-    # CORREZIONE: Rimosso il parametro 'preauthorized' dalla chiamata, come richiesto
-    # dalla nuova versione della libreria.
     authenticator = stauth.Authenticate(
         config['credentials'],
         config['cookies']['cookie_name'],
@@ -89,12 +83,15 @@ except KeyError as e:
     st.error(f"🚨 Errore di configurazione nei Secrets: Manca la chiave {e}. Controlla il file dei secrets su Streamlit Cloud.")
     st.stop()
 
-
 # --- GESTIONE LOGIN ---
-# Il widget di login viene renderizzato in una colonna centrale per estetica
-_, col2, _ = st.columns(3)
-with col2:
-    name, authentication_status, username = authenticator.login('main')
+# CORREZIONE: La funzione login() ora gestisce l'UI e aggiorna st.session_state.
+# Non restituisce più valori da spacchettare.
+authenticator.login()
+
+# Recuperiamo lo stato dalla session_state di Streamlit
+name = st.session_state.get("name")
+authentication_status = st.session_state.get("authentication_status")
+username = st.session_state.get("username")
 
 # --- LOGICA PRINCIPALE DELL'APP ---
 if authentication_status:
@@ -221,7 +218,6 @@ elif authentication_status is None:
         st.warning('Per favore, inserisci username e password')
         # Abilita la registrazione se necessario
         try:
-            # La gestione della preautorizzazione avviene qui, se necessario
             if authenticator.register_user('Registra nuovo utente', preauthorization=False):
                 st.success('Utente registrato con successo. Effettua il login.')
         except Exception as e:
