@@ -3,6 +3,7 @@ import streamlit_authenticator as stauth
 import pandas as pd
 from datetime import datetime
 import data_manager as dm
+import copy # Importa il modulo per la copia profonda
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(
@@ -69,10 +70,13 @@ else:
 
 # --- AUTENTICAZIONE ---
 try:
+    # CORREZIONE FINALE: Usiamo copy.deepcopy per creare una copia *profonda*
+    # e completamente modificabile della configurazione.
     config = {
-        'credentials': dict(st.secrets['credentials']),
-        'cookies': dict(st.secrets['cookies'])
+        'credentials': copy.deepcopy(st.secrets['credentials']),
+        'cookies': copy.deepcopy(st.secrets['cookies'])
     }
+    
     authenticator = stauth.Authenticate(
         config['credentials'],
         config['cookies']['cookie_name'],
@@ -84,8 +88,6 @@ except KeyError as e:
     st.stop()
 
 # --- GESTIONE LOGIN ---
-# CORREZIONE: La funzione login() ora gestisce l'UI e aggiorna st.session_state.
-# Non restituisce più valori da spacchettare.
 authenticator.login()
 
 # Recuperiamo lo stato dalla session_state di Streamlit
@@ -208,17 +210,13 @@ if authentication_status:
                 st.warning("Nessuna operazione selezionata per la cancellazione.")
 
 elif authentication_status is False:
-    _, col2, _ = st.columns(3)
-    with col2:
-        st.error('Username/password non corretti')
+    st.error('Username/password non corretti')
 
 elif authentication_status is None:
-    _, col2, _ = st.columns(3)
-    with col2:
-        st.warning('Per favore, inserisci username e password')
-        # Abilita la registrazione se necessario
-        try:
-            if authenticator.register_user('Registra nuovo utente', preauthorization=False):
-                st.success('Utente registrato con successo. Effettua il login.')
-        except Exception as e:
-            st.error(e)
+    st.warning('Per favore, inserisci username e password')
+    # Abilita la registrazione se necessario
+    try:
+        if authenticator.register_user('Registra nuovo utente', preauthorization=False):
+            st.success('Utente registrato con successo. Effettua il login.')
+    except Exception as e:
+        st.error(e)
