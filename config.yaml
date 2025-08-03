@@ -1,13 +1,11 @@
 cookies:
   cookie_name: kriterion_journal_cookie
-  key: h63gs9oa30vurgv385pawhr867yh3bdk # Cambia questa chiave con una stringa casuale di 32 caratteri
+  key: "h63gs9oa30vurgv385pawhr867yh3bdk" # Cambia questa chiave con una stringa casuale di 32 caratteri
   expiry_days: 30
 preauthorized:
-  emails:
-  - lukeguitarskywalker@gmail.com # Opzionale: puoi pre-autorizzare delle email
+  emails: [lukeguitarskywalker@gmail.com]# Opzionale: puoi pre-autorizzare delle email
 credentials:
-  usernames:
-    jsmith: LukeGSW
-      email: lukeguitarskywalker@gmail.com
-      name: Luca De Cesare
+  usernames: LukeGSW     
+  email: "lukeguitarskywalker@gmail.com"
+      name: "Luca De Cesare"
       password: '$2b$12$K6OkzFjL.nUfGqhdSFamAevQomKSco8Ke2aj4YQ3bHYT/kBKHHWHm' # Questa è la password '12345' hashata
