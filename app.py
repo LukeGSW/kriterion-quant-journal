@@ -70,11 +70,24 @@ else:
 
 # --- AUTENTICAZIONE ---
 try:
-    # CORREZIONE FINALE: Usiamo copy.deepcopy per creare una copia *profonda*
-    # e completamente modificabile della configurazione.
+    # CORREZIONE DEFINITIVA: Ricostruiamo manualmente il dizionario delle credenziali
+    # per evitare RecursionError con st.secrets, che non supporta deepcopy.
+    
+    # Prende i nomi utente dalla configurazione dei secrets
+    usernames = st.secrets["credentials"]["usernames"]
+    
+    # Crea un nuovo dizionario standard Python
+    credentials = {"usernames": {}}
+    for username, user_data in usernames.items():
+        credentials["usernames"][username] = {
+            "name": user_data["name"],
+            "email": user_data["email"],
+            "password": user_data["password"],
+        }
+
     config = {
-        'credentials': copy.deepcopy(st.secrets['credentials']),
-        'cookies': copy.deepcopy(st.secrets['cookies'])
+        'credentials': credentials,
+        'cookies': dict(st.secrets['cookies'])
     }
     
     authenticator = stauth.Authenticate(
