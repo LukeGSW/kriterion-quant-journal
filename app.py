@@ -69,15 +69,21 @@ else:
     worksheet = None
 
 # --- AUTENTICAZIONE ---
-# CORREZIONE: La configurazione viene letta direttamente dai secrets di Streamlit.
-# Questo bypassa il file config.yaml e risolve l'errore di parsing.
 try:
+    # CORREZIONE: Creiamo una copia modificabile (un dict standard) della configurazione
+    # letta dai secrets di sola lettura di Streamlit.
+    config = {
+        'credentials': dict(st.secrets['credentials']),
+        'cookies': dict(st.secrets['cookies']),
+        'preauthorized': dict(st.secrets['preauthorized'])
+    }
+
     authenticator = stauth.Authenticate(
-        st.secrets["credentials"],
-        st.secrets["cookies"]["cookie_name"],
-        st.secrets["cookies"]["key"],
-        st.secrets["cookies"]["expiry_days"],
-        st.secrets["preauthorized"]
+        config['credentials'],
+        config['cookies']['cookie_name'],
+        config['cookies']['key'],
+        config['cookies']['expiry_days'],
+        config['preauthorized']
     )
 except KeyError as e:
     st.error(f"🚨 Errore di configurazione nei Secrets: Manca la chiave {e}. Controlla il file dei secrets su Streamlit Cloud.")
