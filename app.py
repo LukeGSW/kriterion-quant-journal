@@ -70,13 +70,9 @@ else:
 
 # --- AUTENTICAZIONE ---
 try:
-    # CORREZIONE DEFINITIVA: Ricostruiamo manualmente il dizionario delle credenziali
-    # per evitare RecursionError con st.secrets, che non supporta deepcopy.
-    
-    # Prende i nomi utente dalla configurazione dei secrets
+    # Ricostruiamo manualmente il dizionario delle credenziali
+    # per evitare errori con l'oggetto st.secrets di sola lettura.
     usernames = st.secrets["credentials"]["usernames"]
-    
-    # Crea un nuovo dizionario standard Python
     credentials = {"usernames": {}}
     for username, user_data in usernames.items():
         credentials["usernames"][username] = {
@@ -103,14 +99,12 @@ except KeyError as e:
 # --- GESTIONE LOGIN ---
 authenticator.login()
 
-# Recuperiamo lo stato dalla session_state di Streamlit
 name = st.session_state.get("name")
 authentication_status = st.session_state.get("authentication_status")
 username = st.session_state.get("username")
 
 # --- LOGICA PRINCIPALE DELL'APP ---
 if authentication_status:
-    # --- Interfaccia utente dopo il login ---
     st.sidebar.title(f"Benvenuto, *{name}*")
     authenticator.logout('Logout', 'sidebar')
     st.sidebar.markdown("---")
@@ -151,7 +145,7 @@ if authentication_status:
             .hide(axis="index")
         st.dataframe(styled_summary, use_container_width=True, height=len(summary_display)*36+38)
 
-    # 2. AGGIUNGI NUOVA OPERAZIONE
+    # 2. AGGIUNGI NUOVA OPERAZIONE (LOGICA CORRETTA)
     st.header("Aggiungi Nuova Operazione")
     with st.form("new_op_form", clear_on_submit=True, border=True):
         col1, col2, col3, col4 = st.columns(4)
@@ -160,21 +154,27 @@ if authentication_status:
         with col2:
             op_ticker = st.text_input("Ticker", placeholder="es. SPY").upper()
         with col3:
-            op_type = st.selectbox("Tipo Operazione", ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"])
+            op_type = st.selectbox("Tipo Operazione", ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"], key="op_type_selector")
         with col4:
             op_notes = st.text_input("Note")
         
-        op_premio_incassato, op_premio_reinvestito, op_btd_standard, op_btd_boost = 0.0, 0.0, 0.0, 0.0
+        # Inizializzazione delle variabili che conterranno i valori
+        premio_incassato_val = 0.0
+        premio_reinvestito_val = 0.0
+        btd_standard_val = 0.0
+        btd_boost_val = 0.0
+
+        # Visualizzazione condizionale dei campi di input con chiavi univoche
         if op_type == "Incasso Premio":
-            op_premio_incassato = st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f")
+            premio_incassato_val = st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f", key="premio_incassato_input")
         elif op_type == "Reinvestimento Premio":
-            op_premio_reinvestito = st.number_input("Premio Reinvestito", min_value=0.0, step=0.01, format="%.2f")
+            premio_reinvestito_val = st.number_input("Premio Reinvestito", min_value=0.0, step=0.01, format="%.2f", key="premio_reinvestito_input")
         elif op_type == "Investimento BTD":
             btd_col1, btd_col2 = st.columns(2)
             with btd_col1:
-                op_btd_standard = st.number_input("BTD Standard", min_value=0.0, step=0.01, format="%.2f")
+                btd_standard_val = st.number_input("BTD Standard", min_value=0.0, step=0.01, format="%.2f", key="btd_standard_input")
             with btd_col2:
-                op_btd_boost = st.number_input("BTD Boost", min_value=0.0, step=0.01, format="%.2f")
+                btd_boost_val = st.number_input("BTD Boost", min_value=0.0, step=0.01, format="%.2f", key="btd_boost_input")
 
         submitted = st.form_submit_button("✓ Registra Operazione")
 
@@ -182,11 +182,19 @@ if authentication_status:
             if not op_ticker:
                 st.error("Il campo Ticker è obbligatorio.")
             else:
+                # Costruzione del dizionario con i dati corretti
                 new_op_data = {
-                    'username': username, 'date': pd.to_datetime(op_date), 'ticker': op_ticker,
-                    'type': op_type, 'premioIncassato': op_premio_incassato, 'premioReinvestito': op_premio_reinvestito,
-                    'btdStandard': op_btd_standard, 'btdBoost': op_btd_boost, 'notes': op_notes
+                    'username': username, 
+                    'date': pd.to_datetime(op_date), 
+                    'ticker': op_ticker,
+                    'type': op_type, 
+                    'premioIncassato': premio_incassato_val,
+                    'premioReinvestito': premio_reinvestito_val,
+                    'btdStandard': btd_standard_val,
+                    'btdBoost': btd_boost_val,
+                    'notes': op_notes
                 }
+                
                 new_op_df = pd.DataFrame([new_op_data])
                 updated_df = pd.concat([all_data_df, new_op_df], ignore_index=True)
                 dm.save_all_data(worksheet, updated_df)
@@ -227,7 +235,6 @@ elif authentication_status is False:
 
 elif authentication_status is None:
     st.warning('Per favore, inserisci username e password')
-    # Abilita la registrazione se necessario
     try:
         if authenticator.register_user('Registra nuovo utente', preauthorization=False):
             st.success('Utente registrato con successo. Effettua il login.')
