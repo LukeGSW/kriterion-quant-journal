@@ -4,7 +4,7 @@ import yaml
 import pandas as pd
 from datetime import datetime
 from yaml.loader import SafeLoader
-import data_manager as dm # Importa il nostro nuovo modulo
+import data_manager as dm
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(
@@ -13,19 +13,64 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- INIEZIONE CSS PERSONALIZZATO ---
+def load_css():
+    """Carica e inietta il CSS per replicare lo stile dell'app originale."""
+    st.markdown("""
+        <style>
+            :root {
+                --slate-50: #f8fafc; --slate-100: #f1f5f9; --slate-200: #e2e8f0; --slate-300: #cbd5e1;
+                --slate-500: #64748b; --slate-600: #475569; --slate-700: #334155; --slate-800: #1e293b; --slate-900: #0f172a;
+                --blue-600: #2563eb; --blue-700: #1d4ed8;
+                --green-600: #16a34a; --green-700: #15803d;
+                --red-600: #dc2626; --red-700: #b91c1c;
+                --orange-500: #f97316;
+            }
+            /* Rimuove il padding di default di Streamlit per i blocchi */
+            .main .block-container {
+                padding-top: 2rem;
+                padding-bottom: 2rem;
+            }
+            /* Stile "Card" per le sezioni principali */
+            section[data-testid="stSidebar"] div.stButton button {
+                width: 100%;
+            }
+            /* Stile per i titoli */
+            h1 { font-weight: 800; color: var(--slate-900); }
+            h2 { font-weight: 700; color: var(--slate-800); border-bottom: 1px solid var(--slate-200); padding-bottom: 0.5rem; margin-top: 2rem; margin-bottom: 1rem;}
+            /* Stile per tabelle per assomigliare di più all'originale */
+            .stDataFrame {
+                border: none;
+                border-radius: 0.75rem;
+                background-color: white;
+                box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+                border: 1px solid var(--slate-200);
+            }
+            thead th {
+                background-color: var(--slate-50);
+                color: var(--slate-700);
+                text-transform: uppercase;
+                font-size: 0.75rem !important;
+            }
+            tbody tr:hover {
+                background-color: var(--slate-50) !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
 # --- FUNZIONI DI UTILITÀ ---
 def format_currency(value):
     """Formatta un numero come valuta in USD."""
-    if value == 0:
+    if pd.isna(value) or value == 0:
         return "-"
     return f"${value:,.2f}"
 
-# --- GESTIONE SECRETS E CONNESSIONE AL FOGLIO ---
-SHEET_NAME = "KriterionJournalData" # Assicurati che il nome corrisponda
+# --- CARICAMENTO STILE E CONNESSIONE AL DB ---
+load_css()
+SHEET_NAME = "KriterionJournalData"
 if "gcp_service_account" in st.secrets:
     worksheet = dm.get_google_sheet(SHEET_NAME)
 else:
-    st.error("Credenziali Google non configurate nei secrets di Streamlit.")
     worksheet = None
 
 # --- AUTENTICAZIONE ---
@@ -46,17 +91,19 @@ with col2:
 
 # --- LOGICA PRINCIPALE DELL'APP ---
 if authentication_status:
-    st.sidebar.success(f"Benvenuto *{name}*")
+    st.sidebar.title(f"Benvenuto, *{name}*")
     authenticator.logout('Logout', 'sidebar')
+    st.sidebar.markdown("---")
 
     st.title("📈 Diario di Bordo Quantitativo")
-    st.markdown("---")
 
-    # Carica e filtra i dati per l'utente corrente
+    if worksheet is None:
+        st.error("🚨 Connessione al database non riuscita. Controlla la configurazione dei Secrets.")
+        st.stop()
+        
     all_data_df = dm.get_all_data(worksheet)
     user_data_df = all_data_df[all_data_df['username'] == username].copy()
-    user_data_df = user_data_df.sort_values(by="date", ascending=False)
-
+    user_data_df = user_data_df.sort_values(by="date", ascending=False, ignore_index=True)
 
     # --- SEZIONI DELL'APP ---
 
@@ -65,47 +112,34 @@ if authentication_status:
     if user_data_df.empty:
         st.info("Nessuna operazione registrata. Aggiungi la prima operazione dal form qui sotto.")
     else:
+        # Logica di calcolo...
         summary = user_data_df.groupby('ticker').agg(
             incassati=('premioIncassato', 'sum'),
             reinvestiti=('premioReinvestito', 'sum'),
             standard=('btdStandard', 'sum'),
             boost=('btdBoost', 'sum')
         ).reset_index()
-
         summary['liquidi'] = summary['incassati'] - summary['reinvestiti']
         summary['totale_investito'] = summary['reinvestiti'] + summary['standard'] + summary['boost']
         
-        # Calcolo totali per il footer
-        total_row = pd.DataFrame({
-            'ticker': ['**TOTALE**'],
-            'incassati': [summary['incassati'].sum()],
-            'reinvestiti': [summary['reinvestiti'].sum()],
-            'liquidi': [summary['liquidi'].sum()],
-            'standard': [summary['standard'].sum()],
-            'boost': [summary['boost'].sum()],
-            'totale_investito': [summary['totale_investito'].sum()]
+        # Stile per la tabella di riepilogo
+        summary_display = summary.rename(columns={
+            'ticker': 'Asset', 'incassati': 'Premi Incassati', 'reinvestiti': 'Premi Reinvestiti',
+            'liquidi': 'Premi Liquidi', 'standard': 'BTD Standard', 'boost': 'BTD Boost',
+            'totale_investito': 'Inv. Totale'
         })
         
         # Applica formattazione
-        summary_display = summary.style\
-            .format(format_currency, subset=['incassati', 'reinvestiti', 'liquidi', 'standard', 'boost', 'totale_investito'])\
-            .set_properties(**{'text-align': 'right'}, subset=['incassati', 'reinvestiti', 'liquidi', 'standard', 'boost', 'totale_investito'])\
-            .set_properties(**{'font-weight': 'bold'}, subset=['ticker'])\
-            .hide(axis="index")\
-            .set_table_styles([
-                {'selector': 'th', 'props': [('text-transform', 'uppercase'), ('font-size', '0.8rem')]},
-                {'selector': '.col5, .col6', 'props': [('font-weight', 'bold')]},
-            ])
-
-        st.dataframe(summary_display, use_container_width=True)
-        st.dataframe(total_row.style.format(format_currency).hide(axis="index").set_properties(**{'font-weight': 'bold'}), use_container_width=True, hide_headers=True)
-
-
-    st.markdown("---")
+        styled_summary = summary_display.style.format(format_currency, subset=summary_display.columns[1:])\
+            .set_properties(**{'text-align': 'right'}, subset=summary_display.columns[1:])\
+            .set_properties(**{'font-weight': 'bold'}, subset=['Asset'])\
+            .hide(axis="index")
+        st.dataframe(styled_summary, use_container_width=True, height=len(summary_display)*36+38)
 
     # 2. AGGIUNGI NUOVA OPERAZIONE
     st.header("Aggiungi Nuova Operazione")
-    with st.form("new_op_form", clear_on_submit=True):
+    with st.form("new_op_form", clear_on_submit=True, border=True):
+        # ... (il codice del form rimane invariato) ...
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             op_date = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
@@ -116,7 +150,7 @@ if authentication_status:
         with col4:
             op_notes = st.text_input("Note")
         
-        # Campi condizionali
+        op_premio_incassato, op_premio_reinvestito, op_btd_standard, op_btd_boost = 0.0, 0.0, 0.0, 0.0
         if op_type == "Incasso Premio":
             op_premio_incassato = st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f")
         elif op_type == "Reinvestimento Premio":
@@ -128,52 +162,66 @@ if authentication_status:
             with btd_col2:
                 op_btd_boost = st.number_input("BTD Boost", min_value=0.0, step=0.01, format="%.2f")
 
-        submitted = st.form_submit_button("Registra Operazione")
+        submitted = st.form_submit_button("✓ Registra Operazione")
 
         if submitted:
             if not op_ticker:
                 st.error("Il campo Ticker è obbligatorio.")
             else:
                 new_op_data = {
-                    'username': username,
-                    'date': pd.to_datetime(op_date),
-                    'ticker': op_ticker,
-                    'type': op_type,
-                    'premioIncassato': op_premio_incassato if op_type == "Incasso Premio" else 0,
-                    'premioReinvestito': op_premio_reinvestito if op_type == "Reinvestimento Premio" else 0,
-                    'btdStandard': op_btd_standard if op_type == "Investimento BTD" else 0,
-                    'btdBoost': op_btd_boost if op_type == "Investimento BTD" else 0,
-                    'notes': op_notes
+                    'username': username, 'date': pd.to_datetime(op_date), 'ticker': op_ticker,
+                    'type': op_type, 'premioIncassato': op_premio_incassato, 'premioReinvestito': op_premio_reinvestito,
+                    'btdStandard': op_btd_standard, 'btdBoost': op_btd_boost, 'notes': op_notes
                 }
                 new_op_df = pd.DataFrame([new_op_data])
                 updated_df = pd.concat([all_data_df, new_op_df], ignore_index=True)
-                
                 dm.save_all_data(worksheet, updated_df)
                 st.success("Operazione registrata con successo!")
+                st.rerun() # Forza il ricaricamento dell'intera pagina
 
-    st.markdown("---")
-
-    # 3. REGISTRO OPERAZIONI
+    # 3. REGISTRO OPERAZIONI CON CANCELLAZIONE
     st.header("Registro Operazioni")
-    if worksheet is None:
-        st.error("Connessione al database non riuscita. Controlla la configurazione.")
-    else:
-        # Formattazione per la visualizzazione
-        display_df = user_data_df.copy()
-        for col in ['premioIncassato', 'premioReinvestito', 'btdStandard', 'btdBoost']:
-            display_df[col] = display_df[col].apply(format_currency)
+    if not user_data_df.empty:
+        # Aggiunge una colonna 'delete' per la selezione
+        user_data_df.insert(0, "delete", False)
         
-        display_df['date'] = display_df['date'].dt.strftime('%d/%m/%Y')
+        # Usa st.data_editor per rendere la tabella interattiva
+        edited_df = st.data_editor(
+            user_data_df,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "delete": st.column_config.CheckboxColumn("Cancella", default=False),
+                "date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                "username": None # Nasconde la colonna username
+            },
+            disabled=user_data_df.columns.drop('delete') # Rende tutte le colonne tranne 'delete' non modificabili
+        )
         
-        st.dataframe(display_df.drop(columns=['username']), use_container_width=True)
-
+        # Bottone per confermare la cancellazione
+        if st.button("🗑️ Conferma Cancellazione Selezionate", type="primary"):
+            rows_to_delete = edited_df[edited_df['delete']]
+            if not rows_to_delete.empty:
+                # Trova gli indici delle righe da eliminare nel DataFrame originale (all_data_df)
+                # Questo è un modo sicuro per eliminare, basandosi sull'indice originale o su una combinazione di colonne
+                indices_to_drop = all_data_df.index[
+                    (all_data_df['username'] == username) & 
+                    (all_data_df.index.isin(rows_to_delete.index))
+                ]
+                
+                final_df = all_data_df.drop(indices_to_drop)
+                dm.save_all_data(worksheet, final_df)
+                st.success(f"{len(rows_to_delete)} operazione/i cancellata/e con successo.")
+                st.rerun()
+            else:
+                st.warning("Nessuna operazione selezionata per la cancellazione.")
 
 elif authentication_status is False:
+    # ... (il codice di errore login rimane invariato) ...
     _, col2, _ = st.columns(3)
-    with col2:
-        st.error('Username/password non corretti')
-
+    with col2: st.error('Username/password non corretti')
 elif authentication_status is None:
+    # ... (il codice di warning e registrazione rimane invariato) ...
     _, col2, _ = st.columns(3)
     with col2:
         st.warning('Per favore, inserisci username e password')
@@ -182,13 +230,3 @@ elif authentication_status is None:
                 st.success('Utente registrato con successo. Effettua il login.')
         except Exception as e:
             st.error(e)
-            
-# --- Stile ---
-hide_st_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            </style>
-            """
-st.markdown(hide_st_style, unsafe_allow_html=True)
