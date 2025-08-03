@@ -70,20 +70,20 @@ else:
 
 # --- AUTENTICAZIONE ---
 try:
-    # CORREZIONE: Creiamo una copia modificabile (un dict standard) della configurazione
-    # letta dai secrets di sola lettura di Streamlit.
+    # Creiamo una copia modificabile della configurazione letta dai secrets.
+    # Il parametro 'preauthorized' è stato rimosso perché deprecato.
     config = {
         'credentials': dict(st.secrets['credentials']),
-        'cookies': dict(st.secrets['cookies']),
-        'preauthorized': dict(st.secrets['preauthorized'])
+        'cookies': dict(st.secrets['cookies'])
     }
 
+    # CORREZIONE: Rimosso il parametro 'preauthorized' dalla chiamata, come richiesto
+    # dalla nuova versione della libreria.
     authenticator = stauth.Authenticate(
         config['credentials'],
         config['cookies']['cookie_name'],
         config['cookies']['key'],
-        config['cookies']['expiry_days'],
-        config['preauthorized']
+        config['cookies']['expiry_days']
     )
 except KeyError as e:
     st.error(f"🚨 Errore di configurazione nei Secrets: Manca la chiave {e}. Controlla il file dei secrets su Streamlit Cloud.")
@@ -221,6 +221,7 @@ elif authentication_status is None:
         st.warning('Per favore, inserisci username e password')
         # Abilita la registrazione se necessario
         try:
+            # La gestione della preautorizzazione avviene qui, se necessario
             if authenticator.register_user('Registra nuovo utente', preauthorization=False):
                 st.success('Utente registrato con successo. Effettua il login.')
         except Exception as e:
