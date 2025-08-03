@@ -1,14 +1,12 @@
 import streamlit as st
 import streamlit_authenticator as stauth
-import yaml
 import pandas as pd
 from datetime import datetime
-from yaml.loader import SafeLoader
 import data_manager as dm
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(
-    page_title="Diario di Bordo Quantitativo",
+    page_title="Diario di Bordo Quantitativo - Kriterion Quant",
     page_icon="📈",
     layout="wide"
 )
@@ -26,19 +24,12 @@ def load_css():
                 --red-600: #dc2626; --red-700: #b91c1c;
                 --orange-500: #f97316;
             }
-            /* Rimuove il padding di default di Streamlit per i blocchi */
             .main .block-container {
                 padding-top: 2rem;
                 padding-bottom: 2rem;
             }
-            /* Stile "Card" per le sezioni principali */
-            section[data-testid="stSidebar"] div.stButton button {
-                width: 100%;
-            }
-            /* Stile per i titoli */
             h1 { font-weight: 800; color: var(--slate-900); }
             h2 { font-weight: 700; color: var(--slate-800); border-bottom: 1px solid var(--slate-200); padding-bottom: 0.5rem; margin-top: 2rem; margin-bottom: 1rem;}
-            /* Stile per tabelle per assomigliare di più all'originale */
             .stDataFrame {
                 border: none;
                 border-radius: 0.75rem;
@@ -55,6 +46,10 @@ def load_css():
             tbody tr:hover {
                 background-color: var(--slate-50) !important;
             }
+            /* Nasconde il menu di Streamlit e il footer */
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
         </style>
     """, unsafe_allow_html=True)
 
@@ -67,30 +62,37 @@ def format_currency(value):
 
 # --- CARICAMENTO STILE E CONNESSIONE AL DB ---
 load_css()
-SHEET_NAME = "KriterionJournalData"
+SHEET_NAME = "KriterionJournalData" # Assicurati che il nome del tuo Google Sheet corrisponda
 if "gcp_service_account" in st.secrets:
     worksheet = dm.get_google_sheet(SHEET_NAME)
 else:
     worksheet = None
 
 # --- AUTENTICAZIONE ---
-with open('config.yaml') as file:
-    config = yaml.load(file, Loader=SafeLoader)
+# CORREZIONE: La configurazione viene letta direttamente dai secrets di Streamlit.
+# Questo bypassa il file config.yaml e risolve l'errore di parsing.
+try:
+    authenticator = stauth.Authenticate(
+        st.secrets["credentials"],
+        st.secrets["cookies"]["cookie_name"],
+        st.secrets["cookies"]["key"],
+        st.secrets["cookies"]["expiry_days"],
+        st.secrets["preauthorized"]
+    )
+except KeyError as e:
+    st.error(f"🚨 Errore di configurazione nei Secrets: Manca la chiave {e}. Controlla il file dei secrets su Streamlit Cloud.")
+    st.stop()
 
-authenticator = stauth.Authenticate(
-    config['credentials'],
-    config['cookies']['cookie_name'],
-    config['cookies']['key'],
-    config['cookies']['expiry_days'],
-    config['preauthorized']
-)
 
+# --- GESTIONE LOGIN ---
+# Il widget di login viene renderizzato in una colonna centrale per estetica
 _, col2, _ = st.columns(3)
 with col2:
     name, authentication_status, username = authenticator.login('main')
 
 # --- LOGICA PRINCIPALE DELL'APP ---
 if authentication_status:
+    # --- Interfaccia utente dopo il login ---
     st.sidebar.title(f"Benvenuto, *{name}*")
     authenticator.logout('Logout', 'sidebar')
     st.sidebar.markdown("---")
@@ -98,21 +100,18 @@ if authentication_status:
     st.title("📈 Diario di Bordo Quantitativo")
 
     if worksheet is None:
-        st.error("🚨 Connessione al database non riuscita. Controlla la configurazione dei Secrets.")
+        st.error("🚨 Connessione al database non riuscita. Controlla la configurazione dei Secrets di Google.")
         st.stop()
         
     all_data_df = dm.get_all_data(worksheet)
     user_data_df = all_data_df[all_data_df['username'] == username].copy()
     user_data_df = user_data_df.sort_values(by="date", ascending=False, ignore_index=True)
 
-    # --- SEZIONI DELL'APP ---
-
     # 1. DASHBOARD RIEPILOGO
     st.header("Dashboard Riepilogo")
     if user_data_df.empty:
         st.info("Nessuna operazione registrata. Aggiungi la prima operazione dal form qui sotto.")
     else:
-        # Logica di calcolo...
         summary = user_data_df.groupby('ticker').agg(
             incassati=('premioIncassato', 'sum'),
             reinvestiti=('premioReinvestito', 'sum'),
@@ -122,14 +121,12 @@ if authentication_status:
         summary['liquidi'] = summary['incassati'] - summary['reinvestiti']
         summary['totale_investito'] = summary['reinvestiti'] + summary['standard'] + summary['boost']
         
-        # Stile per la tabella di riepilogo
         summary_display = summary.rename(columns={
             'ticker': 'Asset', 'incassati': 'Premi Incassati', 'reinvestiti': 'Premi Reinvestiti',
             'liquidi': 'Premi Liquidi', 'standard': 'BTD Standard', 'boost': 'BTD Boost',
             'totale_investito': 'Inv. Totale'
         })
         
-        # Applica formattazione
         styled_summary = summary_display.style.format(format_currency, subset=summary_display.columns[1:])\
             .set_properties(**{'text-align': 'right'}, subset=summary_display.columns[1:])\
             .set_properties(**{'font-weight': 'bold'}, subset=['Asset'])\
@@ -139,7 +136,6 @@ if authentication_status:
     # 2. AGGIUNGI NUOVA OPERAZIONE
     st.header("Aggiungi Nuova Operazione")
     with st.form("new_op_form", clear_on_submit=True, border=True):
-        # ... (il codice del form rimane invariato) ...
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             op_date = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
@@ -177,38 +173,30 @@ if authentication_status:
                 updated_df = pd.concat([all_data_df, new_op_df], ignore_index=True)
                 dm.save_all_data(worksheet, updated_df)
                 st.success("Operazione registrata con successo!")
-                st.rerun() # Forza il ricaricamento dell'intera pagina
+                st.rerun()
 
     # 3. REGISTRO OPERAZIONI CON CANCELLAZIONE
     st.header("Registro Operazioni")
     if not user_data_df.empty:
-        # Aggiunge una colonna 'delete' per la selezione
         user_data_df.insert(0, "delete", False)
         
-        # Usa st.data_editor per rendere la tabella interattiva
         edited_df = st.data_editor(
-            user_data_df,
-            hide_index=True,
-            use_container_width=True,
+            user_data_df, hide_index=True, use_container_width=True,
             column_config={
                 "delete": st.column_config.CheckboxColumn("Cancella", default=False),
                 "date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                "username": None # Nasconde la colonna username
+                "username": None
             },
-            disabled=user_data_df.columns.drop('delete') # Rende tutte le colonne tranne 'delete' non modificabili
+            disabled=user_data_df.columns.drop('delete')
         )
         
-        # Bottone per confermare la cancellazione
         if st.button("🗑️ Conferma Cancellazione Selezionate", type="primary"):
             rows_to_delete = edited_df[edited_df['delete']]
             if not rows_to_delete.empty:
-                # Trova gli indici delle righe da eliminare nel DataFrame originale (all_data_df)
-                # Questo è un modo sicuro per eliminare, basandosi sull'indice originale o su una combinazione di colonne
                 indices_to_drop = all_data_df.index[
                     (all_data_df['username'] == username) & 
                     (all_data_df.index.isin(rows_to_delete.index))
                 ]
-                
                 final_df = all_data_df.drop(indices_to_drop)
                 dm.save_all_data(worksheet, final_df)
                 st.success(f"{len(rows_to_delete)} operazione/i cancellata/e con successo.")
@@ -217,14 +205,15 @@ if authentication_status:
                 st.warning("Nessuna operazione selezionata per la cancellazione.")
 
 elif authentication_status is False:
-    # ... (il codice di errore login rimane invariato) ...
     _, col2, _ = st.columns(3)
-    with col2: st.error('Username/password non corretti')
+    with col2:
+        st.error('Username/password non corretti')
+
 elif authentication_status is None:
-    # ... (il codice di warning e registrazione rimane invariato) ...
     _, col2, _ = st.columns(3)
     with col2:
         st.warning('Per favore, inserisci username e password')
+        # Abilita la registrazione se necessario
         try:
             if authenticator.register_user('Registra nuovo utente', preauthorization=False):
                 st.success('Utente registrato con successo. Effettua il login.')
