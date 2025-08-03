@@ -145,9 +145,9 @@ if authentication_status:
             .hide(axis="index")
         st.dataframe(styled_summary, use_container_width=True, height=len(summary_display)*36+38)
 
-    # 2. AGGIUNGI NUOVA OPERAZIONE (LOGICA CORRETTA)
+    # 2. AGGIUNGI NUOVA OPERAZIONE (LOGICA CORRETTA E ROBUSTA)
     st.header("Aggiungi Nuova Operazione")
-    with st.form("new_op_form", clear_on_submit=True, border=True):
+    with st.form("new_op_form", border=True):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             op_date = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
@@ -158,23 +158,17 @@ if authentication_status:
         with col4:
             op_notes = st.text_input("Note")
         
-        # Inizializzazione delle variabili che conterranno i valori
-        premio_incassato_val = 0.0
-        premio_reinvestito_val = 0.0
-        btd_standard_val = 0.0
-        btd_boost_val = 0.0
-
         # Visualizzazione condizionale dei campi di input con chiavi univoche
         if op_type == "Incasso Premio":
-            premio_incassato_val = st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f", key="premio_incassato_input")
+            st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f", key="premio_incassato_input")
         elif op_type == "Reinvestimento Premio":
-            premio_reinvestito_val = st.number_input("Premio Reinvestito", min_value=0.0, step=0.01, format="%.2f", key="premio_reinvestito_input")
+            st.number_input("Premio Reinvestito", min_value=0.0, step=0.01, format="%.2f", key="premio_reinvestito_input")
         elif op_type == "Investimento BTD":
             btd_col1, btd_col2 = st.columns(2)
             with btd_col1:
-                btd_standard_val = st.number_input("BTD Standard", min_value=0.0, step=0.01, format="%.2f", key="btd_standard_input")
+                st.number_input("BTD Standard", min_value=0.0, step=0.01, format="%.2f", key="btd_standard_input")
             with btd_col2:
-                btd_boost_val = st.number_input("BTD Boost", min_value=0.0, step=0.01, format="%.2f", key="btd_boost_input")
+                st.number_input("BTD Boost", min_value=0.0, step=0.01, format="%.2f", key="btd_boost_input")
 
         submitted = st.form_submit_button("✓ Registra Operazione")
 
@@ -182,12 +176,20 @@ if authentication_status:
             if not op_ticker:
                 st.error("Il campo Ticker è obbligatorio.")
             else:
+                # CORREZIONE: Recupera i valori da st.session_state usando le chiavi
+                # Questo garantisce che vengano letti i dati corretti al momento del submit.
+                op_type_submitted = st.session_state.op_type_selector
+                premio_incassato_val = st.session_state.get("premio_incassato_input", 0.0) if op_type_submitted == "Incasso Premio" else 0.0
+                premio_reinvestito_val = st.session_state.get("premio_reinvestito_input", 0.0) if op_type_submitted == "Reinvestimento Premio" else 0.0
+                btd_standard_val = st.session_state.get("btd_standard_input", 0.0) if op_type_submitted == "Investimento BTD" else 0.0
+                btd_boost_val = st.session_state.get("btd_boost_input", 0.0) if op_type_submitted == "Investimento BTD" else 0.0
+                
                 # Costruzione del dizionario con i dati corretti
                 new_op_data = {
                     'username': username, 
                     'date': pd.to_datetime(op_date), 
                     'ticker': op_ticker,
-                    'type': op_type, 
+                    'type': op_type_submitted, 
                     'premioIncassato': premio_incassato_val,
                     'premioReinvestito': premio_reinvestito_val,
                     'btdStandard': btd_standard_val,
@@ -198,6 +200,12 @@ if authentication_status:
                 new_op_df = pd.DataFrame([new_op_data])
                 updated_df = pd.concat([all_data_df, new_op_df], ignore_index=True)
                 dm.save_all_data(worksheet, updated_df)
+                
+                # Resetta i valori degli input nel session_state
+                for key in ["premio_incassato_input", "premio_reinvestito_input", "btd_standard_input", "btd_boost_input"]:
+                    if key in st.session_state:
+                        st.session_state[key] = 0.0
+
                 st.success("Operazione registrata con successo!")
                 st.rerun()
 
