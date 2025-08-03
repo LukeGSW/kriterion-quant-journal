@@ -147,30 +147,37 @@ if authentication_status:
 
     # 2. AGGIUNGI NUOVA OPERAZIONE (LOGICA CORRETTA E ROBUSTA)
     st.header("Aggiungi Nuova Operazione")
-    # CORREZIONE: Usiamo clear_on_submit=True per resettare il form in modo idiomatico
-    with st.form("new_op_form", border=True, clear_on_submit=True):
-        col1, col2, col3, col4 = st.columns(4)
+    
+    # La logica di visualizzazione condizionale viene gestita FUORI dal form
+    # per garantire che l'interfaccia si aggiorni correttamente.
+    
+    op_type_selection = st.selectbox(
+        "Tipo Operazione", 
+        ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"], 
+        key="op_type_selector"
+    )
+
+    with st.form("new_op_form", border=True):
+        col1, col2, col3 = st.columns(3)
         with col1:
             op_date = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
         with col2:
             op_ticker = st.text_input("Ticker", placeholder="es. SPY").upper()
         with col3:
-            # La chiave qui è fondamentale per poter leggere lo stato
-            op_type = st.selectbox("Tipo Operazione", ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"], key="op_type_selector")
-        with col4:
             op_notes = st.text_input("Note")
         
-        # Visualizzazione condizionale dei campi di input con chiavi univoche
-        if op_type == "Incasso Premio":
-            st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f", key="premio_incassato_input")
-        elif op_type == "Reinvestimento Premio":
-            st.number_input("Premio Reinvestito", min_value=0.0, step=0.01, format="%.2f", key="premio_reinvestito_input")
-        elif op_type == "Investimento BTD":
+        # I campi di input vengono creati qui dentro, ma la loro logica
+        # dipende dalla selezione fatta FUORI dal form.
+        if op_type_selection == "Incasso Premio":
+            premio_incassato_val = st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f", key="premio_incassato_input")
+        elif op_type_selection == "Reinvestimento Premio":
+            premio_reinvestito_val = st.number_input("Premio Reinvestito", min_value=0.0, step=0.01, format="%.2f", key="premio_reinvestito_input")
+        elif op_type_selection == "Investimento BTD":
             btd_col1, btd_col2 = st.columns(2)
             with btd_col1:
-                st.number_input("BTD Standard", min_value=0.0, step=0.01, format="%.2f", key="btd_standard_input")
+                btd_standard_val = st.number_input("BTD Standard", min_value=0.0, step=0.01, format="%.2f", key="btd_standard_input")
             with btd_col2:
-                st.number_input("BTD Boost", min_value=0.0, step=0.01, format="%.2f", key="btd_boost_input")
+                btd_boost_val = st.number_input("BTD Boost", min_value=0.0, step=0.01, format="%.2f", key="btd_boost_input")
 
         submitted = st.form_submit_button("✓ Registra Operazione")
 
@@ -191,7 +198,6 @@ if authentication_status:
                     'date': pd.to_datetime(op_date), 
                     'ticker': op_ticker,
                     'type': op_type_submitted, 
-                    # Assicura che solo il valore corretto venga salvato
                     'premioIncassato': premio_incassato_val if op_type_submitted == "Incasso Premio" else 0.0,
                     'premioReinvestito': premio_reinvestito_val if op_type_submitted == "Reinvestimento Premio" else 0.0,
                     'btdStandard': btd_standard_val if op_type_submitted == "Investimento BTD" else 0.0,
@@ -204,9 +210,7 @@ if authentication_status:
                 dm.save_all_data(worksheet, updated_df)
                 
                 st.success("Operazione registrata con successo!")
-                # CORREZIONE: Rimosso il loop di reset manuale e st.rerun().
-                # clear_on_submit=True gestirà il reset del form.
-                st.rerun() # Aggiunto di nuovo per forzare l'aggiornamento immediato della dashboard
+                st.rerun()
 
     # 3. REGISTRO OPERAZIONI CON CANCELLAZIONE
     st.header("Registro Operazioni")
