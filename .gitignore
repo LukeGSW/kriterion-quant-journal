@@ -1,0 +1,17 @@
+# Streamlit
+.streamlit/
+secrets.toml
+config.toml
+
+# Autenticazione & Credenziali
+*.json
+config.yaml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
