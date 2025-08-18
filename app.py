@@ -33,25 +33,15 @@ st.set_page_config(
 # Impostazioni UI (utente)
 # --------------------------------------------------------------------------------------
 with st.sidebar.expander("🎨 Impostazioni UI", expanded=False):
-    # Grandezza font base (px)
     base_font_px = st.slider("Grandezza caratteri (px)", min_value=12, max_value=18, value=14, step=1)
-    # Densità tabelle (altezza riga)
     row_height_px = st.slider("Densità tabella (altezza riga, px)", min_value=28, max_value=44, value=32, step=2)
-    # Colore accento
-    accent_color = st.color_picker("Colore accento", "#4F46E5")  # indaco
+    accent_color = st.color_picker("Colore accento", "#4F46E5")
     st.caption("Queste preferenze agiscono solo sull’aspetto grafico.")
 
 # --------------------------------------------------------------------------------------
 # CSS
 # --------------------------------------------------------------------------------------
 def load_css(base_font: int, row_h: int, accent: str) -> None:
-    """
-    Inietta CSS personalizzato:
-    - tipografia e spaziature compatte
-    - palette scura
-    - card look per blocchi, metriche e form
-    - tabelle più leggibili (header sticky, zebra, numeri a dx)
-    """
     st.markdown(f"""
     <style>
       :root {{
@@ -65,10 +55,8 @@ def load_css(base_font: int, row_h: int, accent: str) -> None:
         --text-1:#cbd5e1;
         --muted:#94a3b8;
         --accent:{accent};
-        --accent-600: {accent};
         --radius: 14px;
         --shadow-sm: 0 1px 2px rgba(0,0,0,.25);
-        --shadow-md: 0 6px 18px rgba(0,0,0,.25);
         --fs-base: {base_font}px;
         --row-h: {row_h}px;
       }}
@@ -80,12 +68,10 @@ def load_css(base_font: int, row_h: int, accent: str) -> None:
       html, body {{ font-size: var(--fs-base); color: var(--text-0); }}
       .main .block-container {{ padding-top: 1.2rem; padding-bottom: 2rem; }}
 
-      /* Titoli */
       h1 {{ font-weight: 800; letter-spacing: .2px; color: var(--text-0); margin: .75rem 0 1rem 0; }}
       h2 {{ font-weight: 700; color: var(--text-0); margin: 1.25rem 0 .75rem 0; }}
       h3 {{ font-weight: 600; color: var(--text-1); margin-top: 1rem; }}
 
-      /* Card look per sezioni principali (blocchi immediati sotto titoli) */
       section[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stHorizontalBlock"]) {{
         background: var(--surface-0);
         border: 1px solid var(--border);
@@ -94,91 +80,67 @@ def load_css(base_font: int, row_h: int, accent: str) -> None:
         padding: 0.75rem 0.9rem;
       }}
 
-      /* Form container */
       form {{
         background: var(--surface-0);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         padding: 0.9rem;
-        box-shadow: var(--shadow-sm);
       }}
 
-      /* Pulsanti */
       .stButton > button, button[kind="primary"] {{
-        background: var(--accent) !important;
-        color: #ffffff !important;
+        background: var(--accent) !important; color: #fff !important;
         border: 1px solid transparent !important;
         border-radius: 12px !important;
-        padding: .45rem .9rem !important;
-        font-weight: 700 !important;
+        padding: .45rem .9rem !important; font-weight: 700 !important;
         box-shadow: var(--shadow-sm);
       }}
-      .stButton > button:hover, button[kind="primary"]:hover {{
-        filter: brightness(1.05);
-        transform: translateY(-1px);
-      }}
+      .stButton > button:hover, button[kind="primary"]:hover {{ filter: brightness(1.05); transform: translateY(-1px); }}
       .stButton > button:active {{ transform: translateY(0); }}
 
-      /* Input generici */
       input, textarea, select {{
-        background: var(--surface-1) !important;
-        color: var(--text-0) !important;
-        border: 1px solid var(--border) !important;
-        border-radius: 12px !important;
+        background: var(--surface-1) !important; color: var(--text-0) !important;
+        border: 1px solid var(--border) !important; border-radius: 12px !important;
       }}
       label, .stSelectbox label, .stNumberInput label, .stDateInput label, .stTextInput label {{
-        color: var(--muted) !important;
-        font-weight: 600;
+        color: var(--muted) !important; font-weight: 600;
       }}
 
-      /* Metriche in card */
       [data-testid="stMetric"] {{
-        background: var(--surface-0);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: .6rem .75rem;
-        box-shadow: var(--shadow-sm);
+        background: var(--surface-0); border: 1px solid var(--border);
+        border-radius: 14px; padding: .6rem .75rem;
       }}
       [data-testid="stMetricLabel"] {{ color: var(--muted) !important; font-weight: 600; }}
       [data-testid="stMetricValue"] {{ color: var(--text-0) !important; font-weight: 800; }}
 
-      /* Tabelle: header sticky, zebra striping, numeri a dx */
       .stDataFrame {{
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
         background: var(--surface-0);
       }}
       .stDataFrame thead tr th {{
         position: sticky; top: 0; z-index: 1;
-        background: var(--surface-1) !important;
-        color: var(--muted) !important;
-        text-transform: uppercase;
-        font-size: .8rem !important;
-        letter-spacing: .03em;
+        background: var(--surface-1) !important; color: var(--muted) !important;
+        text-transform: uppercase; font-size: .8rem !important; letter-spacing: .03em;
       }}
       .stDataFrame tbody tr:nth-child(odd) td {{ background: rgba(255,255,255,0.02); }}
       .stDataFrame tbody tr:hover td {{ background: rgba(255,255,255,0.05) !important; }}
       .stDataFrame tbody td {{ height: var(--row-h) !important; vertical-align: middle; }}
       .stDataFrame tbody td:not(:first-child) {{ text-align: right; }}
 
-      /* Sidebar rifinita */
       section[data-testid="stSidebar"] {{
         background: linear-gradient(180deg, #0d1326 0%, #0b1020 100%) !important;
         border-right: 1px solid var(--border);
       }}
 
-      /* Nascondi elementi sistema inutili */
       #MainMenu, footer, header {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
 
-# Carica CSS con preferenze utente
 load_css(base_font=base_font_px, row_h=row_height_px, accent=accent_color)
 
+# --------------------------------------------------------------------------------------
+# Utility di formattazione
+# --------------------------------------------------------------------------------------
 def format_money_or_dash(value) -> str:
-    """Formatta importi in USD con due decimali; zero/NaN → '-'."""
     try:
         if pd.isna(value) or float(value) == 0.0:
             return "-"
@@ -187,7 +149,6 @@ def format_money_or_dash(value) -> str:
         return "-"
 
 def format_pct_or_dash(value) -> str:
-    """Formatta percentuali; NaN → '-'."""
     try:
         if pd.isna(value):
             return "-"
@@ -217,7 +178,6 @@ try:
             "email": user_data["email"],
             "password": user_data["password"],
         }
-
     cookie_conf = st.secrets["cookies"]
     authenticator = stauth.Authenticate(
         credentials,
@@ -239,7 +199,7 @@ authentication_status = st.session_state.get("authentication_status")
 username = st.session_state.get("username")
 
 # --------------------------------------------------------------------------------------
-# Funzioni di metrica (pure)
+# Funzioni metriche (pure)
 # --------------------------------------------------------------------------------------
 def compute_aggregates(user_ops: pd.DataFrame) -> pd.DataFrame:
     if user_ops.empty:
@@ -286,7 +246,10 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
 
     kpi = kpi.merge(counts, how="left", on="ticker")
     for c in ["n_ops","n_inc","n_reinv","n_btd_std","n_btd_bst"]:
-        kpi[c] = pd.to_numeric(kpi[c], errors="coerce").fillna(0).astype(int) if c in kpi.columns else 0
+        if c in kpi.columns:
+            kpi[c] = pd.to_numeric(kpi[c], errors="coerce").fillna(0).astype(int)
+        else:
+            kpi[c] = 0
 
     if user_ops.empty:
         span = pd.DataFrame(columns=["ticker","first_date","last_date","giorni_attivi"])
@@ -498,11 +461,14 @@ if authentication_status:
         kpi["Investito Totale"] = kpi["reinv"] + kpi["std"] + kpi["bst"]
         kpi["Cash Residuo"] = kpi["Capitale Iniziale"] + kpi["inc"] - kpi["Investito Totale"]
 
-        kpi_display = kpi.loc[kpi["attivo"], ["ticker","Capitale Iniziale","inc","reinv","std","bst","Investito Totale","Cash Residuo"]]\
-                         .rename(columns={{
-                             "ticker":"Asset","inc":"Premi Incassati","reinv":"Premi Reinvestiti",
-                             "std":"BTD Standard","bst":"BTD Boost"
-                         }})
+        # 🔧 FIX: singole graffe nel rename
+        kpi_display = (
+            kpi.loc[kpi["attivo"], ["ticker","Capitale Iniziale","inc","reinv","std","bst","Investito Totale","Cash Residuo"]]
+               .rename(columns={
+                   "ticker":"Asset","inc":"Premi Incassati","reinv":"Premi Reinvestiti",
+                   "std":"BTD Standard","bst":"BTD Boost"
+               })
+        )
         if kpi_display.empty:
             st.info("Nessun dato da mostrare.")
         else:
@@ -558,7 +524,6 @@ if authentication_status:
         # --------------------------- Aggiungi Nuova Operazione -------------------------
         st.header("Aggiungi Nuova Operazione")
 
-        # Tickers validi: capitaleIniziale > 0 e attivo = True
         valid_tickers = []
         if not user_tickers_df.empty:
             tmp = user_tickers_df.copy()
@@ -619,7 +584,7 @@ if authentication_status:
                     new_row = {
                         "username": username,
                         "date": pd.to_datetime(op_date),
-                        "ticker": str(op_ticker).upper().strip(),
+                        "ticker": str(op_ticker).upper().strstrip() if hasattr(str, "strstrip") else str(op_ticker).upper().strip(),
                         "type": sel,
                         "premioIncassato": premio_incassato_val,
                         "premioReinvestito": premio_reinvestito_val,
