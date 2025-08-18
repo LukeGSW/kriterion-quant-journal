@@ -469,10 +469,10 @@ if authentication_status:
             )
             st.dataframe(styled_summary, use_container_width=True, height=len(summary_display) * 36 + 38)
 
-        # 4) Aggiungi Nuova Operazione (Ticker con menu a tendina condizionale)
+        # 4) Aggiungi Nuova Operazione (Ticker con menu a tendina condizionale + campi dinamici corretti)
         st.header("Aggiungi Nuova Operazione")
 
-        # Costruisci lista ticker validi: capitaleIniziale > 0 e attivo = True
+        # Lista ticker validi: capitaleIniziale > 0 e attivo = True
         valid_tickers = []
         if not user_tickers_df.empty:
             tmp = user_tickers_df.copy()
@@ -486,31 +486,31 @@ if authentication_status:
         if not valid_tickers:
             st.warning("Nessun ticker disponibile: configura almeno un ticker **attivo** con **capitale iniziale > 0** nella tab **Portafoglio**.")
 
+        # Selettore tipo operazione FUORI dal form → aggiornamento UI immediato
         op_type_selection = st.selectbox(
             "Tipo Operazione",
             ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"],
             key="op_type_selector",
         )
 
+        # Menu a tendina per Ticker con placeholder (compatibilità ampia Streamlit)
+        ticker_options = ["— Seleziona —"] + valid_tickers
+
         with st.form("new_op_form"):
             c1, c2, c3 = st.columns(3)
             with c1:
                 op_date = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
             with c2:
-                op_ticker = st.selectbox(
-                    "Ticker",
-                    options=valid_tickers,
-                    index=None if valid_tickers else 0,
-                    placeholder="Seleziona un ticker",
-                )
+                op_ticker = st.selectbox("Ticker", options=ticker_options, index=0)
             with c3:
                 op_notes = st.text_input("Note")
 
+            # Campi dinamici in base al tipo
             if op_type_selection == "Incasso Premio":
                 st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f", key="premio_incassato_input")
             elif op_type_selection == "Reinvestimento Premio":
                 st.number_input("Premio Reinvestito", min_value=0.0, step=0.01, format="%.2f", key="premio_reinvestito_input")
-            else:
+            elif op_type_selection == "Investimento BTD":
                 b1, b2 = st.columns(2)
                 with b1:
                     st.number_input("BTD Standard", min_value=0.0, step=0.01, format="%.2f", key="btd_standard_input")
@@ -520,14 +520,15 @@ if authentication_status:
             submitted = st.form_submit_button("✓ Registra Operazione", disabled=(len(valid_tickers) == 0))
 
             if submitted:
-                if not op_ticker:
-                    st.error("Seleziona un ticker (menu a tendina).")
+                # Validazioni base
+                if op_ticker == "— Seleziona —":
+                    st.error("Seleziona un ticker dal menu a tendina.")
                 else:
                     sel = st.session_state.op_type_selector
-                    premio_incassato_val = float(st.session_state.get("premio_incassato_input", 0.0)) if sel == "Incasso Premio" else 0.0
+                    premio_incassato_val   = float(st.session_state.get("premio_incassato_input", 0.0)) if sel == "Incasso Premio" else 0.0
                     premio_reinvestito_val = float(st.session_state.get("premio_reinvestito_input", 0.0)) if sel == "Reinvestimento Premio" else 0.0
-                    btd_standard_val = float(st.session_state.get("btd_standard_input", 0.0)) if sel == "Investimento BTD" else 0.0
-                    btd_boost_val = float(st.session_state.get("btd_boost_input", 0.0)) if sel == "Investimento BTD" else 0.0
+                    btd_standard_val       = float(st.session_state.get("btd_standard_input", 0.0)) if sel == "Investimento BTD" else 0.0
+                    btd_boost_val          = float(st.session_state.get("btd_boost_input", 0.0)) if sel == "Investimento BTD" else 0.0
 
                     new_row = {
                         "username": username,
