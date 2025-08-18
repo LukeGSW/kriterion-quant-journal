@@ -8,6 +8,8 @@
 #   1) Portafoglio: Impostazioni Tickers + Panoramica configurata
 #   2) Journal: Dashboard Riepilogo + Aggiungi Operazione + Registro Operazioni
 #   3) Metriche: KPI di portafoglio e per singolo ticker (+ trend mensile)
+# - Migliorie UI: palette scura, accento personalizzabile, tipografia compatta,
+#   card look, metriche in card, tabelle con header sticky e zebra striping
 # ======================================================================================
 
 from __future__ import annotations
@@ -28,26 +30,152 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------------------------------------
+# Impostazioni UI (utente)
+# --------------------------------------------------------------------------------------
+with st.sidebar.expander("🎨 Impostazioni UI", expanded=False):
+    # Grandezza font base (px)
+    base_font_px = st.slider("Grandezza caratteri (px)", min_value=12, max_value=18, value=14, step=1)
+    # Densità tabelle (altezza riga)
+    row_height_px = st.slider("Densità tabella (altezza riga, px)", min_value=28, max_value=44, value=32, step=2)
+    # Colore accento
+    accent_color = st.color_picker("Colore accento", "#4F46E5")  # indaco
+    st.caption("Queste preferenze agiscono solo sull’aspetto grafico.")
+
+# --------------------------------------------------------------------------------------
 # CSS
 # --------------------------------------------------------------------------------------
-def load_css() -> None:
-    st.markdown("""
+def load_css(base_font: int, row_h: int, accent: str) -> None:
+    """
+    Inietta CSS personalizzato:
+    - tipografia e spaziature compatte
+    - palette scura
+    - card look per blocchi, metriche e form
+    - tabelle più leggibili (header sticky, zebra, numeri a dx)
+    """
+    st.markdown(f"""
     <style>
-      :root {
-        --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0; --slate-700:#334155;
-        --slate-800:#1e293b; --slate-900:#0f172a;
-      }
-      .main .block-container { padding-top: 2rem; padding-bottom: 2rem; }
-      h1{ font-weight:800; color:var(--slate-900); }
-      h2{ font-weight:700; color:var(--slate-800); border-bottom:1px solid var(--slate-200);
-          padding-bottom:.5rem; margin-top:2rem; margin-bottom:1rem; }
-      .stDataFrame { border:1px solid var(--slate-200); border-radius:.75rem; background:#111827;
-                     box-shadow:0 1px 2px 0 rgb(0 0 0 / .05); }
-      thead th{ background:var(--slate-50); color:#475569; text-transform:uppercase; font-size:.75rem !important; }
-      tbody tr:hover{ background:var(--slate-100) !important; }
-      #MainMenu, footer, header { visibility:hidden; }
+      :root {{
+        --bg-grad-1:#0b1020; 
+        --bg-grad-2:#151a2c;
+        --surface-0:#111827;
+        --surface-1:#0f172a;
+        --surface-2:#1f2937;
+        --border:#2a3448;
+        --text-0:#e5e7eb;
+        --text-1:#cbd5e1;
+        --muted:#94a3b8;
+        --accent:{accent};
+        --accent-600: {accent};
+        --radius: 14px;
+        --shadow-sm: 0 1px 2px rgba(0,0,0,.25);
+        --shadow-md: 0 6px 18px rgba(0,0,0,.25);
+        --fs-base: {base_font}px;
+        --row-h: {row_h}px;
+      }}
+
+      html, body, .main .block-container {{
+        background: radial-gradient(1200px 800px at 10% 0%, var(--bg-grad-1), var(--bg-grad-2)) fixed;
+      }}
+
+      html, body {{ font-size: var(--fs-base); color: var(--text-0); }}
+      .main .block-container {{ padding-top: 1.2rem; padding-bottom: 2rem; }}
+
+      /* Titoli */
+      h1 {{ font-weight: 800; letter-spacing: .2px; color: var(--text-0); margin: .75rem 0 1rem 0; }}
+      h2 {{ font-weight: 700; color: var(--text-0); margin: 1.25rem 0 .75rem 0; }}
+      h3 {{ font-weight: 600; color: var(--text-1); margin-top: 1rem; }}
+
+      /* Card look per sezioni principali (blocchi immediati sotto titoli) */
+      section[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stHorizontalBlock"]) {{
+        background: var(--surface-0);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
+        padding: 0.75rem 0.9rem;
+      }}
+
+      /* Form container */
+      form {{
+        background: var(--surface-0);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 0.9rem;
+        box-shadow: var(--shadow-sm);
+      }}
+
+      /* Pulsanti */
+      .stButton > button, button[kind="primary"] {{
+        background: var(--accent) !important;
+        color: #ffffff !important;
+        border: 1px solid transparent !important;
+        border-radius: 12px !important;
+        padding: .45rem .9rem !important;
+        font-weight: 700 !important;
+        box-shadow: var(--shadow-sm);
+      }}
+      .stButton > button:hover, button[kind="primary"]:hover {{
+        filter: brightness(1.05);
+        transform: translateY(-1px);
+      }}
+      .stButton > button:active {{ transform: translateY(0); }}
+
+      /* Input generici */
+      input, textarea, select {{
+        background: var(--surface-1) !important;
+        color: var(--text-0) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 12px !important;
+      }}
+      label, .stSelectbox label, .stNumberInput label, .stDateInput label, .stTextInput label {{
+        color: var(--muted) !important;
+        font-weight: 600;
+      }}
+
+      /* Metriche in card */
+      [data-testid="stMetric"] {{
+        background: var(--surface-0);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: .6rem .75rem;
+        box-shadow: var(--shadow-sm);
+      }}
+      [data-testid="stMetricLabel"] {{ color: var(--muted) !important; font-weight: 600; }}
+      [data-testid="stMetricValue"] {{ color: var(--text-0) !important; font-weight: 800; }}
+
+      /* Tabelle: header sticky, zebra striping, numeri a dx */
+      .stDataFrame {{
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+        background: var(--surface-0);
+      }}
+      .stDataFrame thead tr th {{
+        position: sticky; top: 0; z-index: 1;
+        background: var(--surface-1) !important;
+        color: var(--muted) !important;
+        text-transform: uppercase;
+        font-size: .8rem !important;
+        letter-spacing: .03em;
+      }}
+      .stDataFrame tbody tr:nth-child(odd) td {{ background: rgba(255,255,255,0.02); }}
+      .stDataFrame tbody tr:hover td {{ background: rgba(255,255,255,0.05) !important; }}
+      .stDataFrame tbody td {{ height: var(--row-h) !important; vertical-align: middle; }}
+      .stDataFrame tbody td:not(:first-child) {{ text-align: right; }}
+
+      /* Sidebar rifinita */
+      section[data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, #0d1326 0%, #0b1020 100%) !important;
+        border-right: 1px solid var(--border);
+      }}
+
+      /* Nascondi elementi sistema inutili */
+      #MainMenu, footer, header {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
+
+# Carica CSS con preferenze utente
+load_css(base_font=base_font_px, row_h=row_height_px, accent=accent_color)
 
 def format_money_or_dash(value) -> str:
     """Formatta importi in USD con due decimali; zero/NaN → '-'."""
@@ -67,9 +195,6 @@ def format_pct_or_dash(value) -> str:
     except Exception:
         return "-"
 
-# Carica CSS
-load_css()
-
 # --------------------------------------------------------------------------------------
 # Connessione ai worksheet
 # --------------------------------------------------------------------------------------
@@ -84,13 +209,13 @@ ws_tickers = dm.get_tickers_sheet(SHEET_NAME, TICKERS_SHEET_TITLE) if "gcp_servi
 # Autenticazione
 # --------------------------------------------------------------------------------------
 try:
-    usernames = st.secrets["credentials"]["usernames"]  # dict utenti
+    usernames = st.secrets["credentials"]["usernames"]
     credentials = {"usernames": {}}
     for username, user_data in usernames.items():
         credentials["usernames"][username] = {
             "name": user_data["name"],
             "email": user_data["email"],
-            "password": user_data["password"],  # hash generato con stauth.Hasher
+            "password": user_data["password"],
         }
 
     cookie_conf = st.secrets["cookies"]
@@ -114,12 +239,9 @@ authentication_status = st.session_state.get("authentication_status")
 username = st.session_state.get("username")
 
 # --------------------------------------------------------------------------------------
-# Funzioni di metrica (pure, senza side-effect)
+# Funzioni di metrica (pure)
 # --------------------------------------------------------------------------------------
 def compute_aggregates(user_ops: pd.DataFrame) -> pd.DataFrame:
-    """
-    Aggrega le operazioni per ticker (incassati, reinvestiti, btd std/boost).
-    """
     if user_ops.empty:
         return pd.DataFrame(columns=["ticker", "inc", "reinv", "std", "bst"])
     agg = (
@@ -137,26 +259,14 @@ def compute_aggregates(user_ops: pd.DataFrame) -> pd.DataFrame:
     return agg
 
 def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Restituisce:
-    - kpi_ticker: KPI per ticker attivo (Capitale Iniziale, inc/reinv/std/bst, Investito Totale, Cash Residuo,
-                  Tasso Reinvestimento, Utilization, Operazioni per tipo, prime/ultime date, giorni attivi)
-    - kpi_port: KPI aggregati di portafoglio
-    """
-    # Config tickers
-    k_cfg = user_tickers_df.copy()
-    k_cfg = k_cfg.rename(columns={"capitaleIniziale": "Capitale Iniziale"})
+    k_cfg = user_tickers_df.copy().rename(columns={"capitaleIniziale": "Capitale Iniziale"})
     k_cfg["Capitale Iniziale"] = pd.to_numeric(k_cfg["Capitale Iniziale"], errors="coerce").fillna(0.0)
 
-    # Aggregati operazioni
     agg = compute_aggregates(user_ops)
-
-    # Join per mostrare anche tickers senza operazioni
-    kpi = k_cfg.merge(agg, how="left", left_on="ticker", right_on="ticker")
+    kpi = k_cfg.merge(agg, how="left", on="ticker")
     for c in ["inc", "reinv", "std", "bst"]:
         kpi[c] = pd.to_numeric(kpi[c], errors="coerce").fillna(0.0)
 
-    # Investito, cash, tassi
     kpi["Investito Totale"] = kpi["reinv"] + kpi["std"] + kpi["bst"]
     kpi["Entrate Totali"] = kpi["inc"]
     kpi["Base Finanziata"] = kpi["Capitale Iniziale"] + kpi["Entrate Totali"]
@@ -164,7 +274,6 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
     kpi["Utilization"] = kpi.apply(lambda r: (r["Investito Totale"] / r["Base Finanziata"]) if r["Base Finanziata"] > 0 else pd.NA, axis=1)
     kpi["Cash Residuo"] = kpi["Base Finanziata"] - kpi["Investito Totale"]
 
-    # Conteggio operazioni per tipo
     if user_ops.empty:
         counts = pd.DataFrame(columns=["ticker","n_ops","n_inc","n_reinv","n_btd_std","n_btd_bst"])
     else:
@@ -177,12 +286,8 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
 
     kpi = kpi.merge(counts, how="left", on="ticker")
     for c in ["n_ops","n_inc","n_reinv","n_btd_std","n_btd_bst"]:
-        if c in kpi.columns:
-            kpi[c] = pd.to_numeric(kpi[c], errors="coerce").fillna(0).astype(int)
-        else:
-            kpi[c] = 0
+        kpi[c] = pd.to_numeric(kpi[c], errors="coerce").fillna(0).astype(int) if c in kpi.columns else 0
 
-    # Prime/ultime date e giorni attivi
     if user_ops.empty:
         span = pd.DataFrame(columns=["ticker","first_date","last_date","giorni_attivi"])
     else:
@@ -191,7 +296,6 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
 
     kpi = kpi.merge(span, how="left", on="ticker")
 
-    # Selezione e rinomina colonne per presentazione
     kpi_ticker = kpi.loc[kpi["attivo"], [
         "ticker",
         "Capitale Iniziale",
@@ -218,7 +322,6 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
         "giorni_attivi": "Giorni Attivi",
     }).copy()
 
-    # KPI di portafoglio (solo tickers attivi)
     if kpi_ticker.empty:
         kpi_port = pd.DataFrame([{
             "Tickers Attivi": 0,
@@ -254,9 +357,6 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
     return kpi_ticker, kpi_port
 
 def compute_monthly_trend(user_ops: pd.DataFrame) -> pd.DataFrame:
-    """
-    Restituisce un pivot mensile (ultimi 12 mesi) per colonne: Incassi, Reinvestimenti, BTD Std, BTD Boost, Investito Totale.
-    """
     if user_ops.empty:
         return pd.DataFrame(columns=["month","Incassi","Reinvestimenti","BTD Standard","BTD Boost","Investito Totale"])
     df = user_ops.copy()
@@ -269,8 +369,7 @@ def compute_monthly_trend(user_ops: pd.DataFrame) -> pd.DataFrame:
     ).reset_index()
     grp["Investito Totale"] = grp["Reinvestimenti"] + grp["BTD_Standard"] + grp["BTD_Boost"]
     grp = grp.sort_values("month")
-    if len(grp) > 12:
-        grp = grp.tail(12)
+    if len(grp) > 12: grp = grp.tail(12)
     grp = grp.rename(columns={"BTD_Standard":"BTD Standard","BTD_Boost":"BTD Boost"})
     return grp
 
@@ -284,16 +383,13 @@ if authentication_status:
 
     st.title("📈 Diario di Bordo Quantitativo")
 
-    # Verifica worksheet
     if worksheet is None or ws_tickers is None:
         st.error("🚨 Connessione ai worksheet non riuscita. Verifica le credenziali GCP in secrets.")
         st.stop()
 
-    # Carica dataset operazioni e tickers (tutti gli utenti)
     all_data_df = dm.get_all_data(worksheet)
     all_tickers_df = dm.get_all_tickers(ws_tickers)
 
-    # Filtra dati per utente corrente
     user_data_df = (
         all_data_df.loc[all_data_df["username"] == username]
         .copy()
@@ -301,7 +397,6 @@ if authentication_status:
     )
     user_tickers_df = all_tickers_df.loc[all_tickers_df["username"] == username].copy()
 
-    # Tabs principali
     tab_port, tab_journal, tab_metrics = st.tabs(["💼 Portafoglio", "📒 Journal", "📊 Metriche"])
 
     # ----------------------------------------------------------------------------------
@@ -404,10 +499,10 @@ if authentication_status:
         kpi["Cash Residuo"] = kpi["Capitale Iniziale"] + kpi["inc"] - kpi["Investito Totale"]
 
         kpi_display = kpi.loc[kpi["attivo"], ["ticker","Capitale Iniziale","inc","reinv","std","bst","Investito Totale","Cash Residuo"]]\
-                         .rename(columns={
+                         .rename(columns={{
                              "ticker":"Asset","inc":"Premi Incassati","reinv":"Premi Reinvestiti",
                              "std":"BTD Standard","bst":"BTD Boost"
-                         })
+                         }})
         if kpi_display.empty:
             st.info("Nessun dato da mostrare.")
         else:
@@ -418,7 +513,7 @@ if authentication_status:
                 .set_properties(**{"font-weight":"bold"}, subset=["Asset"])
                 .hide(axis="index")
             )
-            st.dataframe(styled_kpi, use_container_width=True, height=len(kpi_display)*36+38)
+            st.dataframe(styled_kpi, use_container_width=True, height=len(kpi_display)*row_height_px+48)
 
     # ----------------------------------------------------------------------------------
     # TAB 2) Journal
@@ -458,7 +553,7 @@ if authentication_status:
                 .set_properties(**{"font-weight": "bold"}, subset=["Asset"])
                 .hide(axis="index")
             )
-            st.dataframe(styled_summary, use_container_width=True, height=len(summary_display) * 36 + 38)
+            st.dataframe(styled_summary, use_container_width=True, height=len(summary_display)*row_height_px+48)
 
         # --------------------------- Aggiungi Nuova Operazione -------------------------
         st.header("Aggiungi Nuova Operazione")
@@ -477,7 +572,6 @@ if authentication_status:
         if not valid_tickers:
             st.warning("Nessun ticker disponibile: configura almeno un ticker **attivo** con **capitale iniziale > 0** nella tab **Portafoglio**.")
 
-        # Selettore tipo operazione (fuori dalla form)
         op_type_selection = st.radio(
             "Tipo Operazione",
             ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"],
@@ -485,11 +579,9 @@ if authentication_status:
             horizontal=True
         )
 
-        # Chiave della form dipendente dal tipo → forza la ricostruzione dei widget dinamici
         form_key_suffix = {"Incasso Premio":"inc", "Reinvestimento Premio":"rei", "Investimento BTD":"btd"}[op_type_selection]
         form_key = f"new_op_form_{form_key_suffix}"
 
-        # Menu a tendina per Ticker con placeholder
         ticker_options = ["— Seleziona —"] + valid_tickers
 
         with st.form(form_key):
@@ -501,12 +593,11 @@ if authentication_status:
             with c3:
                 op_notes = st.text_input("Note")
 
-            # Campi dinamici in base al tipo (ora funzionano correttamente)
             if op_type_selection == "Incasso Premio":
                 st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f", key="premio_incassato_input")
             elif op_type_selection == "Reinvestimento Premio":
                 st.number_input("Premio Reinvestito", min_value=0.0, step=0.01, format="%.2f", key="premio_reinvestito_input")
-            else:  # Investimento BTD
+            else:
                 b1, b2 = st.columns(2)
                 with b1:
                     st.number_input("BTD Standard", min_value=0.0, step=0.01, format="%.2f", key="btd_standard_input")
@@ -648,7 +739,7 @@ if authentication_status:
                 .set_properties(**{"font-weight":"bold"}, subset=["Asset"])
                 .hide(axis="index")
             )
-            st.dataframe(styled, use_container_width=True, height=min(600, len(kpi_show)*36+38))
+            st.dataframe(styled, use_container_width=True, height=min(640, len(kpi_show)*row_height_px+60))
 
         st.subheader("Trend Mensile (ultimi 12 mesi)")
         monthly = compute_monthly_trend(user_data_df)
@@ -658,7 +749,7 @@ if authentication_status:
             st.dataframe(
                 monthly.rename(columns={"month":"Mese"}),
                 use_container_width=True,
-                height=min(600, len(monthly)*36+38)
+                height=min(600, len(monthly)*row_height_px+60)
             )
             st.line_chart(
                 data=monthly.set_index("month")[["Investito Totale"]],
