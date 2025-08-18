@@ -1,145 +1,64 @@
-# app.py
-# ======================================================================================
-# Kriterion Quant Journal - Streamlit App
-# - Autenticazione con streamlit-authenticator (credenziali in .streamlit/secrets.toml)
-# - Gestione operazioni su Google Sheets (Foglio1)
-# - Gestione Tickers & Capitale Iniziale (worksheet "Tickers")
-# - Tab:
-#   1) Portafoglio: Impostazioni Tickers + Panoramica configurata
-#   2) Journal: Dashboard Riepilogo + Aggiungi Operazione + Registro Operazioni
-#   3) Metriche: KPI di portafoglio e per singolo ticker (+ trend mensile)
-# - Migliorie UI: palette scura, accento personalizzabile, tipografia compatta,
-#   card look, metriche in card, tabelle con header sticky e zebra striping
-# ======================================================================================
+# app.py — Kriterion Quant Journal (UI rifinita + fix rename)
 
 from __future__ import annotations
-
 import streamlit as st
 import streamlit_authenticator as stauth
 import pandas as pd
 from datetime import datetime
 import data_manager as dm
 
-# --------------------------------------------------------------------------------------
-# Config pagina
-# --------------------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Diario di Bordo Quantitativo - Kriterion Quant",
-    page_icon="📈",
-    layout="wide",
-)
+st.set_page_config(page_title="Diario di Bordo Quantitativo - Kriterion Quant", page_icon="📈", layout="wide")
 
-# --------------------------------------------------------------------------------------
-# Impostazioni UI (utente)
-# --------------------------------------------------------------------------------------
+# ------------------------ Preferenze UI (sidebar) ------------------------
 with st.sidebar.expander("🎨 Impostazioni UI", expanded=False):
-    base_font_px = st.slider("Grandezza caratteri (px)", min_value=12, max_value=18, value=14, step=1)
-    row_height_px = st.slider("Densità tabella (altezza riga, px)", min_value=28, max_value=44, value=32, step=2)
+    base_font_px = st.slider("Grandezza caratteri (px)", 12, 18, 14, 1)
+    row_height_px = st.slider("Densità tabella (altezza riga, px)", 28, 44, 32, 2)
     accent_color = st.color_picker("Colore accento", "#4F46E5")
-    st.caption("Queste preferenze agiscono solo sull’aspetto grafico.")
+    st.caption("Agiscono solo sull’aspetto grafico.")
 
-# --------------------------------------------------------------------------------------
-# CSS
-# --------------------------------------------------------------------------------------
 def load_css(base_font: int, row_h: int, accent: str) -> None:
     st.markdown(f"""
     <style>
       :root {{
-        --bg-grad-1:#0b1020; 
-        --bg-grad-2:#151a2c;
-        --surface-0:#111827;
-        --surface-1:#0f172a;
-        --surface-2:#1f2937;
-        --border:#2a3448;
-        --text-0:#e5e7eb;
-        --text-1:#cbd5e1;
-        --muted:#94a3b8;
-        --accent:{accent};
-        --radius: 14px;
-        --shadow-sm: 0 1px 2px rgba(0,0,0,.25);
-        --fs-base: {base_font}px;
-        --row-h: {row_h}px;
+        --bg-grad-1:#0b1020; --bg-grad-2:#151a2c;
+        --surface-0:#111827; --surface-1:#0f172a;
+        --border:#2a3448; --text-0:#e5e7eb; --muted:#94a3b8;
+        --accent:{accent}; --radius:14px; --fs-base:{base_font}px; --row-h:{row_h}px;
       }}
-
       html, body, .main .block-container {{
         background: radial-gradient(1200px 800px at 10% 0%, var(--bg-grad-1), var(--bg-grad-2)) fixed;
       }}
-
       html, body {{ font-size: var(--fs-base); color: var(--text-0); }}
       .main .block-container {{ padding-top: 1.2rem; padding-bottom: 2rem; }}
-
-      h1 {{ font-weight: 800; letter-spacing: .2px; color: var(--text-0); margin: .75rem 0 1rem 0; }}
-      h2 {{ font-weight: 700; color: var(--text-0); margin: 1.25rem 0 .75rem 0; }}
-      h3 {{ font-weight: 600; color: var(--text-1); margin-top: 1rem; }}
-
-      section[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stHorizontalBlock"]) {{
-        background: var(--surface-0);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow-sm);
-        padding: 0.75rem 0.9rem;
+      h1 {{ font-weight:800; letter-spacing:.2px; margin:.75rem 0 1rem 0; }}
+      h2 {{ font-weight:700; margin:1.25rem 0 .75rem 0; }}
+      form, .kv-card {{
+        background: var(--surface-0); border:1px solid var(--border); border-radius:var(--radius); padding:.9rem;
       }}
-
-      form {{
-        background: var(--surface-0);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 0.9rem;
-      }}
-
       .stButton > button, button[kind="primary"] {{
-        background: var(--accent) !important; color: #fff !important;
-        border: 1px solid transparent !important;
-        border-radius: 12px !important;
-        padding: .45rem .9rem !important; font-weight: 700 !important;
-        box-shadow: var(--shadow-sm);
+        background: var(--accent) !important; color:#fff !important; border:1px solid transparent !important;
+        border-radius:12px !important; padding:.45rem .9rem !important; font-weight:700 !important;
       }}
-      .stButton > button:hover, button[kind="primary"]:hover {{ filter: brightness(1.05); transform: translateY(-1px); }}
-      .stButton > button:active {{ transform: translateY(0); }}
-
       input, textarea, select {{
-        background: var(--surface-1) !important; color: var(--text-0) !important;
-        border: 1px solid var(--border) !important; border-radius: 12px !important;
+        background: var(--surface-1) !important; color: var(--text-0) !important; border:1px solid var(--border) !important; border-radius:12px !important;
       }}
-      label, .stSelectbox label, .stNumberInput label, .stDateInput label, .stTextInput label {{
-        color: var(--muted) !important; font-weight: 600;
-      }}
-
-      [data-testid="stMetric"] {{
-        background: var(--surface-0); border: 1px solid var(--border);
-        border-radius: 14px; padding: .6rem .75rem;
-      }}
-      [data-testid="stMetricLabel"] {{ color: var(--muted) !important; font-weight: 600; }}
-      [data-testid="stMetricValue"] {{ color: var(--text-0) !important; font-weight: 800; }}
-
-      .stDataFrame {{
-        border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
-        background: var(--surface-0);
-      }}
+      .stDataFrame {{ border:1px solid var(--border); border-radius:12px; overflow:hidden; }}
       .stDataFrame thead tr th {{
-        position: sticky; top: 0; z-index: 1;
-        background: var(--surface-1) !important; color: var(--muted) !important;
-        text-transform: uppercase; font-size: .8rem !important; letter-spacing: .03em;
+        position: sticky; top: 0; z-index: 1; background: var(--surface-1) !important; color:#a7b0c0 !important;
+        text-transform: uppercase; font-size:.8rem !important; letter-spacing:.03em;
       }}
       .stDataFrame tbody tr:nth-child(odd) td {{ background: rgba(255,255,255,0.02); }}
       .stDataFrame tbody tr:hover td {{ background: rgba(255,255,255,0.05) !important; }}
       .stDataFrame tbody td {{ height: var(--row-h) !important; vertical-align: middle; }}
       .stDataFrame tbody td:not(:first-child) {{ text-align: right; }}
-
-      section[data-testid="stSidebar"] {{
-        background: linear-gradient(180deg, #0d1326 0%, #0b1020 100%) !important;
-        border-right: 1px solid var(--border);
-      }}
-
+      section[data-testid="stSidebar"] {{ background: linear-gradient(180deg, #0d1326 0%, #0b1020 100%) !important; border-right:1px solid var(--border); }}
       #MainMenu, footer, header {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
 
 load_css(base_font=base_font_px, row_h=row_height_px, accent=accent_color)
 
-# --------------------------------------------------------------------------------------
-# Utility di formattazione
-# --------------------------------------------------------------------------------------
+# ------------------------ Utility formato ------------------------
 def format_money_or_dash(value) -> str:
     try:
         if pd.isna(value) or float(value) == 0.0:
@@ -156,9 +75,7 @@ def format_pct_or_dash(value) -> str:
     except Exception:
         return "-"
 
-# --------------------------------------------------------------------------------------
-# Connessione ai worksheet
-# --------------------------------------------------------------------------------------
+# ------------------------ Connessioni ------------------------
 SHEET_NAME = "KriterionJournalData"
 WORKSHEET_TITLE = "Foglio1"
 TICKERS_SHEET_TITLE = "Tickers"
@@ -166,59 +83,43 @@ TICKERS_SHEET_TITLE = "Tickers"
 worksheet = dm.get_google_sheet(SHEET_NAME, WORKSHEET_TITLE) if "gcp_service_account" in st.secrets else None
 ws_tickers = dm.get_tickers_sheet(SHEET_NAME, TICKERS_SHEET_TITLE) if "gcp_service_account" in st.secrets else None
 
-# --------------------------------------------------------------------------------------
-# Autenticazione
-# --------------------------------------------------------------------------------------
+# ------------------------ Autenticazione ------------------------
 try:
     usernames = st.secrets["credentials"]["usernames"]
     credentials = {"usernames": {}}
-    for username, user_data in usernames.items():
-        credentials["usernames"][username] = {
-            "name": user_data["name"],
-            "email": user_data["email"],
-            "password": user_data["password"],
-        }
+    for uname, u in usernames.items():
+        credentials["usernames"][uname] = {"name": u["name"], "email": u["email"], "password": u["password"]}
     cookie_conf = st.secrets["cookies"]
-    authenticator = stauth.Authenticate(
-        credentials,
-        cookie_conf["cookie_name"],
-        cookie_conf["key"],
-        cookie_conf["expiry_days"],
-    )
+    authenticator = stauth.Authenticate(credentials, cookie_conf["cookie_name"], cookie_conf["key"], cookie_conf["expiry_days"])
 except KeyError as e:
-    st.error(f"🚨 Errore di configurazione nei Secrets: manca la chiave {e}. Controlla .streamlit/secrets.toml.")
+    st.error(f"🚨 Errore di configurazione nei Secrets: manca la chiave {e}.")
     st.stop()
 except Exception as e:
     st.error(f"🚨 Errore inizializzazione autenticazione: {e}")
     st.stop()
 
 authenticator.login()
-
 name = st.session_state.get("name")
 authentication_status = st.session_state.get("authentication_status")
 username = st.session_state.get("username")
 
-# --------------------------------------------------------------------------------------
-# Funzioni metriche (pure)
-# --------------------------------------------------------------------------------------
+# ------------------------ Metriche ------------------------
 def compute_aggregates(user_ops: pd.DataFrame) -> pd.DataFrame:
     if user_ops.empty:
         return pd.DataFrame(columns=["ticker", "inc", "reinv", "std", "bst"])
     agg = (
         user_ops.groupby("ticker")
-        .agg(
-            inc=("premioIncassato", "sum"),
-            reinv=("premioReinvestito", "sum"),
-            std=("btdStandard", "sum"),
-            bst=("btdBoost", "sum"),
-        )
+        .agg(inc=("premioIncassato", "sum"),
+             reinv=("premioReinvestito", "sum"),
+             std=("btdStandard", "sum"),
+             bst=("btdBoost", "sum"))
         .reset_index()
     )
     for c in ["inc", "reinv", "std", "bst"]:
         agg[c] = pd.to_numeric(agg[c], errors="coerce").fillna(0.0)
     return agg
 
-def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame):
     k_cfg = user_tickers_df.copy().rename(columns={"capitaleIniziale": "Capitale Iniziale"})
     k_cfg["Capitale Iniziale"] = pd.to_numeric(k_cfg["Capitale Iniziale"], errors="coerce").fillna(0.0)
 
@@ -234,6 +135,7 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
     kpi["Utilization"] = kpi.apply(lambda r: (r["Investito Totale"] / r["Base Finanziata"]) if r["Base Finanziata"] > 0 else pd.NA, axis=1)
     kpi["Cash Residuo"] = kpi["Base Finanziata"] - kpi["Investito Totale"]
 
+    # conteggi
     if user_ops.empty:
         counts = pd.DataFrame(columns=["ticker","n_ops","n_inc","n_reinv","n_btd_std","n_btd_bst"])
     else:
@@ -260,16 +162,9 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
     kpi = kpi.merge(span, how="left", on="ticker")
 
     kpi_ticker = kpi.loc[kpi["attivo"], [
-        "ticker",
-        "Capitale Iniziale",
-        "Entrate Totali",
-        "reinv","std","bst",
-        "Investito Totale",
-        "Cash Residuo",
-        "Tasso Reinvestimento",
-        "Utilization",
-        "n_ops","n_inc","n_reinv","n_btd_std","n_btd_bst",
-        "first_date","last_date","giorni_attivi"
+        "ticker", "Capitale Iniziale", "Entrate Totali", "reinv","std","bst",
+        "Investito Totale", "Cash Residuo", "Tasso Reinvestimento", "Utilization",
+        "n_ops","n_inc","n_reinv","n_btd_std","n_btd_bst", "first_date","last_date","giorni_attivi"
     ]].rename(columns={
         "ticker": "Asset",
         "reinv": "Premi Reinvestiti",
@@ -287,13 +182,9 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
 
     if kpi_ticker.empty:
         kpi_port = pd.DataFrame([{
-            "Tickers Attivi": 0,
-            "Capitale Iniziale Totale": 0.0,
-            "Entrate Totali": 0.0,
-            "Investito Totale": 0.0,
-            "Cash Residuo Totale": 0.0,
-            "Tasso Reinvestimento Portafoglio": pd.NA,
-            "Utilization Portafoglio": pd.NA,
+            "Tickers Attivi": 0, "Capitale Iniziale Totale": 0.0,
+            "Entrate Totali": 0.0, "Investito Totale": 0.0, "Cash Residuo Totale": 0.0,
+            "Tasso Reinvestimento Portafoglio": pd.NA, "Utilization Portafoglio": pd.NA,
             "Operazioni Totali": 0
         }])
     else:
@@ -305,18 +196,13 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
         t_rei = (kpi_ticker["Premi Reinvestiti"].sum() / entr) if entr > 0 else pd.NA
         base_fin = cap0 + entr
         utilz = (invt / base_fin) if base_fin > 0 else pd.NA
-
         kpi_port = pd.DataFrame([{
-            "Tickers Attivi": int((kpi_ticker["Asset"].nunique())),
-            "Capitale Iniziale Totale": cap0,
-            "Entrate Totali": entr,
-            "Investito Totale": invt,
-            "Cash Residuo Totale": cash,
-            "Tasso Reinvestimento Portafoglio": t_rei,
-            "Utilization Portafoglio": utilz,
+            "Tickers Attivi": int(kpi_ticker["Asset"].nunique()),
+            "Capitale Iniziale Totale": cap0, "Entrate Totali": entr,
+            "Investito Totale": invt, "Cash Residuo Totale": cash,
+            "Tasso Reinvestimento Portafoglio": t_rei, "Utilization Portafoglio": utilz,
             "Operazioni Totali": int(nops)
         }])
-
     return kpi_ticker, kpi_port
 
 def compute_monthly_trend(user_ops: pd.DataFrame) -> pd.DataFrame:
@@ -333,12 +219,9 @@ def compute_monthly_trend(user_ops: pd.DataFrame) -> pd.DataFrame:
     grp["Investito Totale"] = grp["Reinvestimenti"] + grp["BTD_Standard"] + grp["BTD_Boost"]
     grp = grp.sort_values("month")
     if len(grp) > 12: grp = grp.tail(12)
-    grp = grp.rename(columns={"BTD_Standard":"BTD Standard","BTD_Boost":"BTD Boost"})
-    return grp
+    return grp.rename(columns={"BTD_Standard":"BTD Standard","BTD_Boost":"BTD Boost"})
 
-# --------------------------------------------------------------------------------------
-# Logica applicativa
-# --------------------------------------------------------------------------------------
+# ------------------------ App ------------------------
 if authentication_status:
     st.sidebar.title(f"Benvenuto, *{name}*")
     authenticator.logout("Logout", "sidebar")
@@ -362,9 +245,7 @@ if authentication_status:
 
     tab_port, tab_journal, tab_metrics = st.tabs(["💼 Portafoglio", "📒 Journal", "📊 Metriche"])
 
-    # ----------------------------------------------------------------------------------
-    # TAB 1) Portafoglio
-    # ----------------------------------------------------------------------------------
+    # ------------------ TAB Portafoglio ------------------
     with tab_port:
         st.header("Impostazioni Portafoglio — Tickers & Capitale Iniziale")
 
@@ -389,13 +270,9 @@ if authentication_status:
                         ]
                     else:
                         new_row = pd.DataFrame([{
-                            "username": username,
-                            "ticker": new_ticker,
-                            "capitaleIniziale": float(new_cap),
-                            "descrizione": new_descr,
-                            "attivo": bool(new_active),
-                            "created_at": now,
-                            "notes": ""
+                            "username": username, "ticker": new_ticker,
+                            "capitaleIniziale": float(new_cap), "descrizione": new_descr,
+                            "attivo": bool(new_active), "created_at": now, "notes": ""
                         }])
                         all_tickers_df = pd.concat([all_tickers_df, new_row], ignore_index=True)
 
@@ -407,24 +284,17 @@ if authentication_status:
         if not user_tickers_df.empty:
             view_tk = user_tickers_df.copy()
             view_tk.insert(0, "delete", False)
-
             edited_tk = st.data_editor(
-                view_tk,
-                hide_index=True,
-                use_container_width=True,
+                view_tk, hide_index=True, use_container_width=True,
                 column_config={
                     "delete": st.column_config.CheckboxColumn("Cancella", default=False),
                     "capitaleIniziale": st.column_config.NumberColumn("Capitale Iniziale", step=100.0, format="%.2f"),
                     "attivo": st.column_config.CheckboxColumn("Attivo", default=True),
-                    "created_at": None,
-                    "notes": None,
-                    "username": None,
+                    "created_at": None, "notes": None, "username": None,
                 },
                 disabled=[c for c in view_tk.columns if c not in ["delete", "capitaleIniziale", "descrizione", "attivo", "notes"]],
             )
-
             cdel, csave = st.columns([1, 1])
-
             with cdel:
                 if st.button("🗑️ Cancella selezionati"):
                     to_del = edited_tk[edited_tk["delete"]].drop(columns=["delete"], errors="ignore")
@@ -433,13 +303,11 @@ if authentication_status:
                     else:
                         mask = pd.Series(False, index=all_tickers_df.index)
                         for _, r in to_del.iterrows():
-                            mask |= ((all_tickers_df["username"] == r["username"]) &
-                                     (all_tickers_df["ticker"] == r["ticker"]))
+                            mask |= ((all_tickers_df["username"] == r["username"]) & (all_tickers_df["ticker"] == r["ticker"]))
                         kept = all_tickers_df[~mask]
                         dm.save_all_tickers(ws_tickers, kept)
                         st.success(f"Cancellati {mask.sum()} ticker.")
                         st.rerun()
-
             with csave:
                 if st.button("💾 Salva modifiche"):
                     upd = edited_tk.drop(columns=["delete"], errors="ignore")
@@ -454,19 +322,22 @@ if authentication_status:
 
         st.subheader("Panoramica Portafoglio (configurato)")
         agg = compute_aggregates(user_data_df)
-        k_cfg = user_tickers_df.copy().rename(columns={"capitaleIniziale":"Capitale Iniziale"})
+        k_cfg = user_tickers_df.copy().rename(columns={"capitaleIniziale": "Capitale Iniziale"})
         kpi = k_cfg.merge(agg, how="left", on="ticker")
-        for c in ["inc","reinv","std","bst"]:
+        for c in ["inc", "reinv", "std", "bst"]:
             kpi[c] = pd.to_numeric(kpi[c], errors="coerce").fillna(0.0)
         kpi["Investito Totale"] = kpi["reinv"] + kpi["std"] + kpi["bst"]
         kpi["Cash Residuo"] = kpi["Capitale Iniziale"] + kpi["inc"] - kpi["Investito Totale"]
 
-        # 🔧 FIX: singole graffe nel rename
+        # 🔧 FIX definitivo: singole graffe
         kpi_display = (
             kpi.loc[kpi["attivo"], ["ticker","Capitale Iniziale","inc","reinv","std","bst","Investito Totale","Cash Residuo"]]
                .rename(columns={
-                   "ticker":"Asset","inc":"Premi Incassati","reinv":"Premi Reinvestiti",
-                   "std":"BTD Standard","bst":"BTD Boost"
+                   "ticker": "Asset",
+                   "inc": "Premi Incassati",
+                   "reinv": "Premi Reinvestiti",
+                   "std": "BTD Standard",
+                   "bst": "BTD Boost"
                })
         )
         if kpi_display.empty:
@@ -481,9 +352,7 @@ if authentication_status:
             )
             st.dataframe(styled_kpi, use_container_width=True, height=len(kpi_display)*row_height_px+48)
 
-    # ----------------------------------------------------------------------------------
-    # TAB 2) Journal
-    # ----------------------------------------------------------------------------------
+    # ------------------ TAB Journal ------------------
     with tab_journal:
         st.header("Dashboard Riepilogo")
         if user_data_df.empty:
@@ -491,62 +360,44 @@ if authentication_status:
         else:
             summary = (
                 user_data_df.groupby("ticker")
-                .agg(
-                    incassati=("premioIncassato", "sum"),
-                    reinvestiti=("premioReinvestito", "sum"),
-                    standard=("btdStandard", "sum"),
-                    boost=("btdBoost", "sum"),
-                )
-                .reset_index()
+                .agg(incassati=("premioIncassato","sum"),
+                     reinvestiti=("premioReinvestito","sum"),
+                     standard=("btdStandard","sum"),
+                     boost=("btdBoost","sum")).reset_index()
             )
             summary["liquidi"] = summary["incassati"] - summary["reinvestiti"]
             summary["totale_investito"] = summary["reinvestiti"] + summary["standard"] + summary["boost"]
-
             summary_display = summary.rename(columns={
-                "ticker": "Asset",
-                "incassati": "Premi Incassati",
-                "reinvestiti": "Premi Reinvestiti",
-                "liquidi": "Premi Liquidi",
-                "standard": "BTD Standard",
-                "boost": "BTD Boost",
-                "totale_investito": "Inv. Totale",
+                "ticker": "Asset", "incassati": "Premi Incassati", "reinvestiti": "Premi Reinvestiti",
+                "liquidi": "Premi Liquidi", "standard": "BTD Standard", "boost": "BTD Boost",
+                "totale_investito": "Inv. Totale"
             })
-
             styled_summary = (
                 summary_display.style
                 .format({c: format_money_or_dash for c in summary_display.columns if c != "Asset"})
-                .set_properties(**{"text-align": "right"}, subset=[c for c in summary_display.columns if c != "Asset"])
-                .set_properties(**{"font-weight": "bold"}, subset=["Asset"])
+                .set_properties(**{"text-align":"right"}, subset=[c for c in summary_display.columns if c != "Asset"])
+                .set_properties(**{"font-weight":"bold"}, subset=["Asset"])
                 .hide(axis="index")
             )
             st.dataframe(styled_summary, use_container_width=True, height=len(summary_display)*row_height_px+48)
 
-        # --------------------------- Aggiungi Nuova Operazione -------------------------
         st.header("Aggiungi Nuova Operazione")
 
+        # Tickers disponibili: attivi & capitale iniziale > 0
         valid_tickers = []
         if not user_tickers_df.empty:
             tmp = user_tickers_df.copy()
             tmp["capitaleIniziale"] = pd.to_numeric(tmp["capitaleIniziale"], errors="coerce").fillna(0.0)
             tmp["ticker"] = tmp["ticker"].astype(str).str.upper().str.strip()
-            valid_tickers = sorted(
-                tmp.loc[(tmp["attivo"] == True) & (tmp["capitaleIniziale"] > 0.0), "ticker"]
-                .dropna().unique().tolist()
-            )
+            valid_tickers = sorted(tmp.loc[(tmp["attivo"] == True) & (tmp["capitaleIniziale"] > 0.0), "ticker"].dropna().unique().tolist())
 
         if not valid_tickers:
             st.warning("Nessun ticker disponibile: configura almeno un ticker **attivo** con **capitale iniziale > 0** nella tab **Portafoglio**.")
 
-        op_type_selection = st.radio(
-            "Tipo Operazione",
-            ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"],
-            key="op_type_selector",
-            horizontal=True
-        )
+        op_type_selection = st.radio("Tipo Operazione", ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"],
+                                     key="op_type_selector", horizontal=True)
 
-        form_key_suffix = {"Incasso Premio":"inc", "Reinvestimento Premio":"rei", "Investimento BTD":"btd"}[op_type_selection]
-        form_key = f"new_op_form_{form_key_suffix}"
-
+        form_key = f"new_op_form_{ {'Incasso Premio':'inc','Reinvestimento Premio':'rei','Investimento BTD':'btd'}[op_type_selection] }"
         ticker_options = ["— Seleziona —"] + valid_tickers
 
         with st.form(form_key):
@@ -570,100 +421,65 @@ if authentication_status:
                     st.number_input("BTD Boost", min_value=0.0, step=0.01, format="%.2f", key="btd_boost_input")
 
             submitted = st.form_submit_button("✓ Registra Operazione", disabled=(len(valid_tickers) == 0))
-
             if submitted:
                 if op_ticker == "— Seleziona —":
-                    st.error("Seleziona un ticker dal menu a tendina.")
+                    st.error("Seleziona un ticker dal menu.")
                 else:
                     sel = st.session_state.op_type_selector
-                    premio_incassato_val   = float(st.session_state.get("premio_incassato_input", 0.0)) if sel == "Incasso Premio" else 0.0
-                    premio_reinvestito_val = float(st.session_state.get("premio_reinvestito_input", 0.0)) if sel == "Reinvestimento Premio" else 0.0
-                    btd_standard_val       = float(st.session_state.get("btd_standard_input", 0.0)) if sel == "Investimento BTD" else 0.0
-                    btd_boost_val          = float(st.session_state.get("btd_boost_input", 0.0)) if sel == "Investimento BTD" else 0.0
-
                     new_row = {
                         "username": username,
                         "date": pd.to_datetime(op_date),
-                        "ticker": str(op_ticker).upper().strstrip() if hasattr(str, "strstrip") else str(op_ticker).upper().strip(),
+                        "ticker": str(op_ticker).upper().strip(),   # 🔧 fix .strip()
                         "type": sel,
-                        "premioIncassato": premio_incassato_val,
-                        "premioReinvestito": premio_reinvestito_val,
-                        "btdStandard": btd_standard_val,
-                        "btdBoost": btd_boost_val,
+                        "premioIncassato": float(st.session_state.get("premio_incassato_input", 0.0)) if sel == "Incasso Premio" else 0.0,
+                        "premioReinvestito": float(st.session_state.get("premio_reinvestito_input", 0.0)) if sel == "Reinvestimento Premio" else 0.0,
+                        "btdStandard": float(st.session_state.get("btd_standard_input", 0.0)) if sel == "Investimento BTD" else 0.0,
+                        "btdBoost": float(st.session_state.get("btd_boost_input", 0.0)) if sel == "Investimento BTD" else 0.0,
                         "notes": op_notes,
                     }
-
                     updated_df = pd.concat([all_data_df, pd.DataFrame([new_row])], ignore_index=True)
                     dm.save_all_data(worksheet, updated_df)
                     st.success("Operazione registrata con successo!")
                     st.rerun()
 
-        # ----------------------------- Registro Operazioni -----------------------------
         st.header("Registro Operazioni")
         if not user_data_df.empty:
             view_df = user_data_df.copy()
             view_df.insert(0, "delete", False)
-
             edited_df = st.data_editor(
-                view_df,
-                hide_index=True,
-                use_container_width=True,
-                column_config={
-                    "delete": st.column_config.CheckboxColumn("Cancella", default=False),
-                    "date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                    "username": None,
-                },
+                view_df, hide_index=True, use_container_width=True,
+                column_config={"delete": st.column_config.CheckboxColumn("Cancella", default=False),
+                               "date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                               "username": None},
                 disabled=[c for c in view_df.columns if c != "delete"],
             )
-
             if st.button("🗑️ Conferma Cancellazione Selezionate", type="primary"):
-                to_delete = edited_df[edited_df["delete"]].drop(columns=["delete"], errors="ignore")
-                if to_delete.empty:
-                    st.warning("Nessuna operazione selezionata per la cancellazione.")
+                rows_to_delete = edited_df[edited_df["delete"]].drop(columns=["delete"], errors="ignore")
+                if rows_to_delete.empty:
+                    st.warning("Nessuna operazione selezionata.")
                 else:
-                    def _normalize(df: pd.DataFrame) -> pd.DataFrame:
-                        out = df.copy()
-                        out["date"] = pd.to_datetime(out["date"], errors="coerce")
-                        for c in ["premioIncassato", "premioReinvestito", "btdStandard", "btdBoost"]:
-                            out[c] = pd.to_numeric(out[c], errors="coerce").fillna(0.0)
-                        out["ticker"] = out["ticker"].astype(str).str.upper().str.strip()
-                        out["type"] = out["type"].astype(str).str.strip()
-                        out["notes"] = out["notes"].astype(str)
-                        out["username"] = out["username"].astype(str)
-                        return out
-
-                    base_norm = _normalize(all_data_df)
-                    del_norm  = _normalize(to_delete)
-
-                    def _make_key(df: pd.DataFrame) -> pd.Series:
-                        return (
-                            df["username"].astype(str) + "|" +
-                            df["date"].dt.strftime("%Y-%m-%d").astype(str) + "|" +
-                            df["ticker"].astype(str) + "|" +
-                            df["type"].astype(str) + "|" +
-                            df["premioIncassato"].astype(str) + "|" +
-                            df["premioReinvestito"].astype(str) + "|" +
-                            df["btdStandard"].astype(str) + "|" +
-                            df["btdBoost"].astype(str) + "|" +
-                            df["notes"].astype(str)
-                        )
-
-                    base_norm["_rk"] = _make_key(base_norm)
-                    del_norm["_rk"]  = _make_key(del_norm)
-
-                    indices_to_drop = base_norm.index[base_norm["_rk"].isin(set(del_norm["_rk"]))]
-                    final_df = all_data_df.drop(index=indices_to_drop)
-
+                    def _norm(df: pd.DataFrame) -> pd.DataFrame:
+                        d = df.copy()
+                        d["date"] = pd.to_datetime(d["date"], errors="coerce")
+                        for c in ["premioIncassato","premioReinvestito","btdStandard","btdBoost"]:
+                            d[c] = pd.to_numeric(d[c], errors="coerce").fillna(0.0)
+                        for c in ["ticker","type","notes","username"]:
+                            d[c] = d[c].astype(str).str.strip().str.upper() if c=="ticker" else d[c].astype(str).str.strip()
+                        return d
+                    base = _norm(all_data_df); dele = _norm(rows_to_delete)
+                    def _key(df: pd.DataFrame) -> pd.Series:
+                        return (df["username"]+"|"+df["date"].dt.strftime("%Y-%m-%d")+"|"+df["ticker"]+"|"+df["type"]+"|"+
+                                df["premioIncassato"].astype(str)+"|"+df["premioReinvestito"].astype(str)+"|"+
+                                df["btdStandard"].astype(str)+"|"+df["btdBoost"].astype(str)+"|"+df["notes"])
+                    base["_rk"] = _key(base); dele["_rk"] = _key(dele)
+                    final_df = all_data_df.drop(index=base.index[base["_rk"].isin(set(dele["_rk"]))])
                     dm.save_all_data(worksheet, final_df)
-                    st.success(f"{len(indices_to_drop)} operazione/i cancellata/e con successo.")
+                    st.success(f"{len(base.index[base['_rk'].isin(set(dele['_rk']))])} operazione/i cancellata/e.")
                     st.rerun()
 
-    # ----------------------------------------------------------------------------------
-    # TAB 3) Metriche
-    # ----------------------------------------------------------------------------------
+    # ------------------ TAB Metriche ------------------
     with tab_metrics:
         st.header("Metriche di Portafoglio e per Ticker")
-
         kpi_ticker, kpi_port = compute_kpi_tables(user_data_df, user_tickers_df)
 
         st.subheader("KPI di Portafoglio")
@@ -673,11 +489,10 @@ if authentication_status:
             c2.metric("Operazioni Totali", int(kpi_port.iloc[0]["Operazioni Totali"]))
             c3.metric("Capitale Iniziale Totale", format_money_or_dash(kpi_port.iloc[0]["Capitale Iniziale Totale"]))
             c4.metric("Cash Residuo Totale", format_money_or_dash(kpi_port.iloc[0]["Cash Residuo Totale"]))
-
             c5, c6, c7 = st.columns(3)
             c5.metric("Entrate Totali", format_money_or_dash(kpi_port.iloc[0]["Entrate Totali"]))
             c6.metric("Investito Totale", format_money_or_dash(kpi_port.iloc[0]["Investito Totale"]))
-            c6.caption("Somma di Reinvestimenti + BTD Standard + BTD Boost")
+            c6.caption("Reinvestimenti + BTD Standard + BTD Boost")
             c7.metric("Utilization Portafoglio", format_pct_or_dash(kpi_port.iloc[0]["Utilization Portafoglio"]))
             st.caption(f"Tasso Reinvestimento Portafoglio: {format_pct_or_dash(kpi_port.iloc[0]['Tasso Reinvestimento Portafoglio'])}")
 
@@ -688,14 +503,10 @@ if authentication_status:
             kpi_show = kpi_ticker.copy()
             money_cols = ["Capitale Iniziale","Entrate Totali","Premi Reinvestiti","BTD Standard","BTD Boost","Investito Totale","Cash Residuo"]
             pct_cols   = ["Tasso Reinvestimento","Utilization"]
-            for c in money_cols:
-                if c not in kpi_show.columns:
-                    kpi_show[c] = 0.0
             if "Primo Movimento" in kpi_show.columns:
                 kpi_show["Primo Movimento"] = pd.to_datetime(kpi_show["Primo Movimento"], errors="coerce").dt.strftime("%Y-%m-%d")
             if "Ultimo Movimento" in kpi_show.columns:
                 kpi_show["Ultimo Movimento"] = pd.to_datetime(kpi_show["Ultimo Movimento"], errors="coerce").dt.strftime("%Y-%m-%d")
-
             styled = (
                 kpi_show.style
                 .format({c: format_money_or_dash for c in money_cols})
@@ -711,15 +522,9 @@ if authentication_status:
         if monthly.empty:
             st.info("Nessun dato mensile disponibile.")
         else:
-            st.dataframe(
-                monthly.rename(columns={"month":"Mese"}),
-                use_container_width=True,
-                height=min(600, len(monthly)*row_height_px+60)
-            )
-            st.line_chart(
-                data=monthly.set_index("month")[["Investito Totale"]],
-                use_container_width=True
-            )
+            st.dataframe(monthly.rename(columns={"month":"Mese"}), use_container_width=True,
+                         height=min(600, len(monthly)*row_height_px+60))
+            st.line_chart(data=monthly.set_index("month")[["Investito Totale"]], use_container_width=True)
 
 elif authentication_status is False:
     st.error("Username/password non corretti")
