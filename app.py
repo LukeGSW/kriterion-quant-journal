@@ -1,4 +1,4 @@
-# app.py — Kriterion Quant Journal (UI rifinita + fix rename)
+# app.py — Kriterion Quant Journal (UI rifinita + sidebar fix)
 
 from __future__ import annotations
 import streamlit as st
@@ -7,7 +7,12 @@ import pandas as pd
 from datetime import datetime
 import data_manager as dm
 
-st.set_page_config(page_title="Diario di Bordo Quantitativo - Kriterion Quant", page_icon="📈", layout="wide")
+st.set_page_config(
+    page_title="Diario di Bordo Quantitativo - Kriterion Quant",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded",  # sidebar aperta di default (il toggle ora è visibile)
+)
 
 # ------------------------ Preferenze UI (sidebar) ------------------------
 with st.sidebar.expander("🎨 Impostazioni UI", expanded=False):
@@ -25,34 +30,83 @@ def load_css(base_font: int, row_h: int, accent: str) -> None:
         --border:#2a3448; --text-0:#e5e7eb; --muted:#94a3b8;
         --accent:{accent}; --radius:14px; --fs-base:{base_font}px; --row-h:{row_h}px;
       }}
+
+      /* Sfondo app e tipografia base */
       html, body, .main .block-container {{
         background: radial-gradient(1200px 800px at 10% 0%, var(--bg-grad-1), var(--bg-grad-2)) fixed;
       }}
       html, body {{ font-size: var(--fs-base); color: var(--text-0); }}
       .main .block-container {{ padding-top: 1.2rem; padding-bottom: 2rem; }}
+
+      /* Header visibile (serve per il toggle della sidebar) */
+      header[data-testid="stHeader"] {{
+        background: linear-gradient(180deg, rgba(15,23,42,.95) 0%, rgba(2,6,23,.9) 100%) !important;
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(6px);
+      }}
+
+      /* Titoli */
       h1 {{ font-weight:800; letter-spacing:.2px; margin:.75rem 0 1rem 0; }}
       h2 {{ font-weight:700; margin:1.25rem 0 .75rem 0; }}
+
+      /* Card base */
       form, .kv-card {{
-        background: var(--surface-0); border:1px solid var(--border); border-radius:var(--radius); padding:.9rem;
+        background: var(--surface-0); border:1px solid var(--border);
+        border-radius:var(--radius); padding:.9rem;
       }}
+
+      /* Pulsanti */
       .stButton > button, button[kind="primary"] {{
         background: var(--accent) !important; color:#fff !important; border:1px solid transparent !important;
         border-radius:12px !important; padding:.45rem .9rem !important; font-weight:700 !important;
       }}
+      .stButton > button:hover, button[kind="primary"]:hover {{ filter: brightness(1.05); transform: translateY(-1px); }}
+
+      /* Input */
       input, textarea, select {{
-        background: var(--surface-1) !important; color: var(--text-0) !important; border:1px solid var(--border) !important; border-radius:12px !important;
+        background: var(--surface-1) !important; color: var(--text-0) !important;
+        border:1px solid var(--border) !important; border-radius:12px !important;
       }}
+
+      /* Tabelle */
       .stDataFrame {{ border:1px solid var(--border); border-radius:12px; overflow:hidden; }}
       .stDataFrame thead tr th {{
-        position: sticky; top: 0; z-index: 1; background: var(--surface-1) !important; color:#a7b0c0 !important;
+        position: sticky; top: 0; z-index: 1;
+        background: var(--surface-1) !important; color:#a7b0c0 !important;
         text-transform: uppercase; font-size:.8rem !important; letter-spacing:.03em;
       }}
       .stDataFrame tbody tr:nth-child(odd) td {{ background: rgba(255,255,255,0.02); }}
       .stDataFrame tbody tr:hover td {{ background: rgba(255,255,255,0.05) !important; }}
       .stDataFrame tbody td {{ height: var(--row-h) !important; vertical-align: middle; }}
       .stDataFrame tbody td:not(:first-child) {{ text-align: right; }}
-      section[data-testid="stSidebar"] {{ background: linear-gradient(180deg, #0d1326 0%, #0b1020 100%) !important; border-right:1px solid var(--border); }}
-      #MainMenu, footer, header {{ visibility: hidden; }}
+
+      /* Sidebar: FIX overflow, spaziature, leggibilità */
+      section[data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, #0d1326 0%, #0b1020 100%) !important;
+        border-right:1px solid var(--border);
+        overflow-y: auto !important;           /* evita accavallamenti */
+        overflow-x: hidden !important;
+        padding-right: .35rem;                  /* evita scrollbar che copre contenuto */
+        min-width: 18rem;                       /* evita sidebar troppo stretta */
+      }}
+      section[data-testid="stSidebar"] * {{
+        line-height: 1.25;                      /* maggiore respiro */
+        word-break: break-word;                 /* spezza parole lunghe */
+      }}
+      section[data-testid="stSidebar"] .stSlider > div,
+      section[data-testid="stSidebar"] .stColorPicker > div {{
+        padding-top: .25rem; padding-bottom: .25rem;
+      }}
+      section[data-testid="stSidebar"] .stExpander {{
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }}
+      section[data-testid="stSidebar"] .streamlit-expanderHeader {{
+        font-weight: 700;
+      }}
+
+      /* Nascondo solo MainMenu e footer (NON l'header, serve il toggle!) */
+      #MainMenu, footer {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -329,7 +383,6 @@ if authentication_status:
         kpi["Investito Totale"] = kpi["reinv"] + kpi["std"] + kpi["bst"]
         kpi["Cash Residuo"] = kpi["Capitale Iniziale"] + kpi["inc"] - kpi["Investito Totale"]
 
-        # 🔧 FIX definitivo: singole graffe
         kpi_display = (
             kpi.loc[kpi["attivo"], ["ticker","Capitale Iniziale","inc","reinv","std","bst","Investito Totale","Cash Residuo"]]
                .rename(columns={
@@ -429,7 +482,7 @@ if authentication_status:
                     new_row = {
                         "username": username,
                         "date": pd.to_datetime(op_date),
-                        "ticker": str(op_ticker).upper().strip(),   # 🔧 fix .strip()
+                        "ticker": str(op_ticker).upper().strip(),
                         "type": sel,
                         "premioIncassato": float(st.session_state.get("premio_incassato_input", 0.0)) if sel == "Incasso Premio" else 0.0,
                         "premioReinvestito": float(st.session_state.get("premio_reinvestito_input", 0.0)) if sel == "Reinvestimento Premio" else 0.0,
