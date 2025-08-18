@@ -120,15 +120,16 @@ def get_tickers_sheet(spreadsheet_name: str = "KriterionJournalData",
 # Lettura/Scrittura OPERAZIONI
 # --------------------------------------------------------------------------------------
 @st.cache_data(ttl=60)
-def get_all_data(ws: Optional[gspread.Worksheet]) -> pd.DataFrame:
+def get_all_data(_ws: Optional[gspread.Worksheet]) -> pd.DataFrame:
     """
     Legge tutte le operazioni dal worksheet in un DataFrame tipizzato, con colonne garantite.
+    Nota: il parametro è prefissato con underscore per evitare hashing (Worksheet non hashabile).
     """
-    if ws is None:
+    if _ws is None:
         return pd.DataFrame(columns=COLS)
 
     try:
-        df = get_as_dataframe(ws, evaluate_formulas=True, header=0)
+        df = get_as_dataframe(_ws, evaluate_formulas=True, header=0)
     except Exception as e:
         st.error(f"Errore lettura dati da worksheet: {e}")
         return pd.DataFrame(columns=COLS)
@@ -155,11 +156,12 @@ def get_all_data(ws: Optional[gspread.Worksheet]) -> pd.DataFrame:
     return df
 
 
-def save_all_data(ws: Optional[gspread.Worksheet], df: pd.DataFrame) -> None:
+def save_all_data(_ws: Optional[gspread.Worksheet], df: pd.DataFrame) -> None:
     """
     Scrive l'intero DataFrame OPERAZIONI nel worksheet e invalida le cache.
+    (Funzione non cached → nessun problema ad accettare Worksheet come parametro.)
     """
-    if ws is None:
+    if _ws is None:
         st.error("Worksheet operazioni non disponibile.")
         return
 
@@ -170,7 +172,7 @@ def save_all_data(ws: Optional[gspread.Worksheet], df: pd.DataFrame) -> None:
         if "date" in out.columns:
             out["date"] = pd.to_datetime(out["date"], errors="coerce").dt.strftime("%Y-%m-%d")
 
-        set_with_dataframe(ws, out, include_index=False, resize=True)
+        set_with_dataframe(_ws, out, include_index=False, resize=True)
         # Invalida cache dopo scrittura
         st.cache_data.clear()
         st.cache_resource.clear()
@@ -182,15 +184,16 @@ def save_all_data(ws: Optional[gspread.Worksheet], df: pd.DataFrame) -> None:
 # Lettura/Scrittura TICKERS
 # --------------------------------------------------------------------------------------
 @st.cache_data(ttl=60)
-def get_all_tickers(ws_tickers: Optional[gspread.Worksheet]) -> pd.DataFrame:
+def get_all_tickers(_ws_tickers: Optional[gspread.Worksheet]) -> pd.DataFrame:
     """
     Legge tutti i tickers configurati in un DataFrame tipizzato, con colonne garantite.
+    Nota: parametro prefissato con underscore per evitare hashing (Worksheet non hashabile).
     """
-    if ws_tickers is None:
+    if _ws_tickers is None:
         return pd.DataFrame(columns=TICKERS_COLS)
 
     try:
-        df = get_as_dataframe(ws_tickers, evaluate_formulas=True, header=0)
+        df = get_as_dataframe(_ws_tickers, evaluate_formulas=True, header=0)
     except Exception as e:
         st.error(f"Errore lettura dati da worksheet Tickers: {e}")
         return pd.DataFrame(columns=TICKERS_COLS)
@@ -214,11 +217,12 @@ def get_all_tickers(ws_tickers: Optional[gspread.Worksheet]) -> pd.DataFrame:
     return df
 
 
-def save_all_tickers(ws_tickers: Optional[gspread.Worksheet], df: pd.DataFrame) -> None:
+def save_all_tickers(_ws_tickers: Optional[gspread.Worksheet], df: pd.DataFrame) -> None:
     """
     Scrive l'intera tabella TICKERS nel worksheet e invalida le cache.
+    (Funzione non cached → nessun problema ad accettare Worksheet come parametro.)
     """
-    if ws_tickers is None:
+    if _ws_tickers is None:
         st.error("Worksheet Tickers non disponibile.")
         return
 
@@ -227,7 +231,7 @@ def save_all_tickers(ws_tickers: Optional[gspread.Worksheet], df: pd.DataFrame) 
         # Serializza created_at
         if "created_at" in out.columns:
             out["created_at"] = pd.to_datetime(out["created_at"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
-        set_with_dataframe(ws_tickers, out, include_index=False, resize=True)
+        set_with_dataframe(_ws_tickers, out, include_index=False, resize=True)
         st.cache_data.clear()
         st.cache_resource.clear()
     except Exception as e:
