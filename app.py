@@ -237,7 +237,7 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
         invt = kpi_ticker["Investito Totale"].sum()
         cash = kpi_ticker["Cash Residuo"].sum()
         nops = kpi_ticker["N. Operazioni"].sum()
-        # Tasso di reinvestimento e utilization a livello portafoglio (aggregati)
+        # Tasso di reinvestimento e utilization a livello portafoglio
         t_rei = (kpi_ticker["Premi Reinvestiti"].sum() / entr) if entr > 0 else pd.NA
         base_fin = cap0 + entr
         utilz = (invt / base_fin) if base_fin > 0 else pd.NA
@@ -270,7 +270,6 @@ def compute_monthly_trend(user_ops: pd.DataFrame) -> pd.DataFrame:
         BTD_Boost=("btdBoost","sum")
     ).reset_index()
     grp["Investito Totale"] = grp["Reinvestimenti"] + grp["BTD_Standard"] + grp["BTD_Boost"]
-    # tieni ultimi 12 mesi se presenti
     grp = grp.sort_values("month")
     if len(grp) > 12:
         grp = grp.tail(12)
@@ -470,8 +469,23 @@ if authentication_status:
             )
             st.dataframe(styled_summary, use_container_width=True, height=len(summary_display) * 36 + 38)
 
-        # 4) Aggiungi Nuova Operazione
+        # 4) Aggiungi Nuova Operazione (Ticker con menu a tendina condizionale)
         st.header("Aggiungi Nuova Operazione")
+
+        # Costruisci lista ticker validi: capitaleIniziale > 0 e attivo = True
+        valid_tickers = []
+        if not user_tickers_df.empty:
+            tmp = user_tickers_df.copy()
+            tmp["capitaleIniziale"] = pd.to_numeric(tmp["capitaleIniziale"], errors="coerce").fillna(0.0)
+            tmp["ticker"] = tmp["ticker"].astype(str).str.upper().str.strip()
+            valid_tickers = sorted(
+                tmp.loc[(tmp["attivo"] == True) & (tmp["capitaleIniziale"] > 0.0), "ticker"]
+                .dropna().unique().tolist()
+            )
+
+        if not valid_tickers:
+            st.warning("Nessun ticker disponibile: configura almeno un ticker **attivo** con **capitale iniziale > 0** nella tab **Portafoglio**.")
+
         op_type_selection = st.selectbox(
             "Tipo Operazione",
             ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"],
@@ -483,7 +497,12 @@ if authentication_status:
             with c1:
                 op_date = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
             with c2:
-                op_ticker = st.text_input("Ticker", placeholder="es. SPY").upper().strip()
+                op_ticker = st.selectbox(
+                    "Ticker",
+                    options=valid_tickers,
+                    index=None if valid_tickers else 0,
+                    placeholder="Seleziona un ticker",
+                )
             with c3:
                 op_notes = st.text_input("Note")
 
@@ -498,11 +517,11 @@ if authentication_status:
                 with b2:
                     st.number_input("BTD Boost", min_value=0.0, step=0.01, format="%.2f", key="btd_boost_input")
 
-            submitted = st.form_submit_button("✓ Registra Operazione")
+            submitted = st.form_submit_button("✓ Registra Operazione", disabled=(len(valid_tickers) == 0))
 
             if submitted:
                 if not op_ticker:
-                    st.error("Il campo Ticker è obbligatorio.")
+                    st.error("Seleziona un ticker (menu a tendina).")
                 else:
                     sel = st.session_state.op_type_selector
                     premio_incassato_val = float(st.session_state.get("premio_incassato_input", 0.0)) if sel == "Incasso Premio" else 0.0
@@ -513,7 +532,7 @@ if authentication_status:
                     new_row = {
                         "username": username,
                         "date": pd.to_datetime(op_date),
-                        "ticker": op_ticker,
+                        "ticker": str(op_ticker).upper().strip(),
                         "type": sel,
                         "premioIncassato": premio_incassato_val,
                         "premioReinvestito": premio_reinvestito_val,
@@ -611,8 +630,6 @@ if authentication_status:
             c6.metric("Investito Totale", format_money_or_dash(kpi_port.iloc[0]["Investito Totale"]))
             c6.caption("Somma di Reinvestimenti + BTD Standard + BTD Boost")
             c7.metric("Utilization Portafoglio", format_pct_or_dash(kpi_port.iloc[0]["Utilization Portafoglio"]))
-            # Nota: Tasso di Reinvestimento Portafoglio è informativo ma può coincidere parzialmente con Utilization
-            # se BTD == 0. Lo mostriamo in caption per evitare overload.
             st.caption(f"Tasso Reinvestimento Portafoglio: {format_pct_or_dash(kpi_port.iloc[0]['Tasso Reinvestimento Portafoglio'])}")
 
         # KPI per Ticker (tabella dettagliata)
@@ -621,7 +638,6 @@ if authentication_status:
             st.info("Nessun ticker attivo o nessuna operazione registrata.")
         else:
             kpi_show = kpi_ticker.copy()
-            # Formattazioni
             money_cols = ["Capitale Iniziale","Entrate Totali","Premi Reinvestiti","BTD Standard","BTD Boost","Investito Totale","Cash Residuo"]
             pct_cols   = ["Tasso Reinvestimento","Utilization"]
             for c in money_cols:
@@ -648,13 +664,11 @@ if authentication_status:
         if monthly.empty:
             st.info("Nessun dato mensile disponibile.")
         else:
-            # Mostra tabella + chart semplice
             st.dataframe(
                 monthly.rename(columns={"month":"Mese"}),
                 use_container_width=True,
                 height=min(600, len(monthly)*36+38)
             )
-            # Chart sintetico su Investito Totale
             st.line_chart(
                 data=monthly.set_index("month")[["Investito Totale"]],
                 use_container_width=True
