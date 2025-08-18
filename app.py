@@ -41,7 +41,7 @@ def load_css() -> None:
       h1{ font-weight:800; color:var(--slate-900); }
       h2{ font-weight:700; color:var(--slate-800); border-bottom:1px solid var(--slate-200);
           padding-bottom:.5rem; margin-top:2rem; margin-bottom:1rem; }
-      .stDataFrame { border:1px solid var(--slate-200); border-radius:.75rem; background:#fff;
+      .stDataFrame { border:1px solid var(--slate-200); border-radius:.75rem; background:#111827;
                      box-shadow:0 1px 2px 0 rgb(0 0 0 / .05); }
       thead th{ background:var(--slate-50); color:#475569; text-transform:uppercase; font-size:.75rem !important; }
       tbody tr:hover{ background:var(--slate-100) !important; }
@@ -160,7 +160,6 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
     kpi["Investito Totale"] = kpi["reinv"] + kpi["std"] + kpi["bst"]
     kpi["Entrate Totali"] = kpi["inc"]
     kpi["Base Finanziata"] = kpi["Capitale Iniziale"] + kpi["Entrate Totali"]
-    # Evita divisione per zero
     kpi["Tasso Reinvestimento"] = kpi.apply(lambda r: (r["reinv"] / r["inc"]) if r["inc"] > 0 else pd.NA, axis=1)
     kpi["Utilization"] = kpi.apply(lambda r: (r["Investito Totale"] / r["Base Finanziata"]) if r["Base Finanziata"] > 0 else pd.NA, axis=1)
     kpi["Cash Residuo"] = kpi["Base Finanziata"] - kpi["Investito Totale"]
@@ -237,7 +236,6 @@ def compute_kpi_tables(user_ops: pd.DataFrame, user_tickers_df: pd.DataFrame) ->
         invt = kpi_ticker["Investito Totale"].sum()
         cash = kpi_ticker["Cash Residuo"].sum()
         nops = kpi_ticker["N. Operazioni"].sum()
-        # Tasso di reinvestimento e utilization a livello portafoglio
         t_rei = (kpi_ticker["Premi Reinvestiti"].sum() / entr) if entr > 0 else pd.NA
         base_fin = cap0 + entr
         utilz = (invt / base_fin) if base_fin > 0 else pd.NA
@@ -326,10 +324,8 @@ if authentication_status:
                     st.error("Inserisci un ticker.")
                 else:
                     now = pd.Timestamp.now()
-                    # Se esiste già (username+ticker) → update; altrimenti append
                     mask = (all_tickers_df["username"] == username) & (all_tickers_df["ticker"] == new_ticker)
                     if mask.any():
-                        # Update dei campi modificabili
                         all_tickers_df.loc[mask, ["capitaleIniziale", "descrizione", "attivo"]] = [
                             float(new_cap), new_descr, bool(new_active)
                         ]
@@ -349,7 +345,6 @@ if authentication_status:
                     st.success("Ticker salvato.")
                     st.rerun()
 
-        # Editor tickers utente con cancellazione e salvataggio modifiche
         st.subheader("Tickers configurati")
         if not user_tickers_df.empty:
             view_tk = user_tickers_df.copy()
@@ -378,7 +373,6 @@ if authentication_status:
                     if to_del.empty:
                         st.warning("Nessun ticker selezionato.")
                     else:
-                        # Cancella per match su (username, ticker)
                         mask = pd.Series(False, index=all_tickers_df.index)
                         for _, r in to_del.iterrows():
                             mask |= ((all_tickers_df["username"] == r["username"]) &
@@ -390,7 +384,6 @@ if authentication_status:
 
             with csave:
                 if st.button("💾 Salva modifiche"):
-                    # Applica modifiche per l'utente corrente unendo su (username, ticker)
                     upd = edited_tk.drop(columns=["delete"], errors="ignore")
                     base = all_tickers_df.copy()
                     base = base[~((base["username"] == username) & (base["ticker"].isin(upd["ticker"])))]
@@ -401,7 +394,6 @@ if authentication_status:
         else:
             st.info("Nessun ticker configurato. Aggiungi i tuoi ticker per iniziare.")
 
-        # Panoramica configurata
         st.subheader("Panoramica Portafoglio (configurato)")
         agg = compute_aggregates(user_data_df)
         k_cfg = user_tickers_df.copy().rename(columns={"capitaleIniziale":"Capitale Iniziale"})
@@ -432,7 +424,6 @@ if authentication_status:
     # TAB 2) Journal
     # ----------------------------------------------------------------------------------
     with tab_journal:
-        # 3) Dashboard Riepilogo
         st.header("Dashboard Riepilogo")
         if user_data_df.empty:
             st.info("Nessuna operazione registrata. Aggiungi la prima operazione dal form qui sotto.")
@@ -469,10 +460,10 @@ if authentication_status:
             )
             st.dataframe(styled_summary, use_container_width=True, height=len(summary_display) * 36 + 38)
 
-        # 4) Aggiungi Nuova Operazione (Ticker con menu a tendina condizionale + campi dinamici corretti)
+        # --------------------------- Aggiungi Nuova Operazione -------------------------
         st.header("Aggiungi Nuova Operazione")
 
-        # Lista ticker validi: capitaleIniziale > 0 e attivo = True
+        # Tickers validi: capitaleIniziale > 0 e attivo = True
         valid_tickers = []
         if not user_tickers_df.empty:
             tmp = user_tickers_df.copy()
@@ -486,17 +477,22 @@ if authentication_status:
         if not valid_tickers:
             st.warning("Nessun ticker disponibile: configura almeno un ticker **attivo** con **capitale iniziale > 0** nella tab **Portafoglio**.")
 
-        # Selettore tipo operazione FUORI dal form → aggiornamento UI immediato
-        op_type_selection = st.selectbox(
+        # Selettore tipo operazione (fuori dalla form)
+        op_type_selection = st.radio(
             "Tipo Operazione",
             ["Incasso Premio", "Reinvestimento Premio", "Investimento BTD"],
             key="op_type_selector",
+            horizontal=True
         )
 
-        # Menu a tendina per Ticker con placeholder (compatibilità ampia Streamlit)
+        # Chiave della form dipendente dal tipo → forza la ricostruzione dei widget dinamici
+        form_key_suffix = {"Incasso Premio":"inc", "Reinvestimento Premio":"rei", "Investimento BTD":"btd"}[op_type_selection]
+        form_key = f"new_op_form_{form_key_suffix}"
+
+        # Menu a tendina per Ticker con placeholder
         ticker_options = ["— Seleziona —"] + valid_tickers
 
-        with st.form("new_op_form"):
+        with st.form(form_key):
             c1, c2, c3 = st.columns(3)
             with c1:
                 op_date = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
@@ -505,12 +501,12 @@ if authentication_status:
             with c3:
                 op_notes = st.text_input("Note")
 
-            # Campi dinamici in base al tipo
+            # Campi dinamici in base al tipo (ora funzionano correttamente)
             if op_type_selection == "Incasso Premio":
                 st.number_input("Premio Incassato", min_value=0.0, step=0.01, format="%.2f", key="premio_incassato_input")
             elif op_type_selection == "Reinvestimento Premio":
                 st.number_input("Premio Reinvestito", min_value=0.0, step=0.01, format="%.2f", key="premio_reinvestito_input")
-            elif op_type_selection == "Investimento BTD":
+            else:  # Investimento BTD
                 b1, b2 = st.columns(2)
                 with b1:
                     st.number_input("BTD Standard", min_value=0.0, step=0.01, format="%.2f", key="btd_standard_input")
@@ -520,7 +516,6 @@ if authentication_status:
             submitted = st.form_submit_button("✓ Registra Operazione", disabled=(len(valid_tickers) == 0))
 
             if submitted:
-                # Validazioni base
                 if op_ticker == "— Seleziona —":
                     st.error("Seleziona un ticker dal menu a tendina.")
                 else:
@@ -547,7 +542,7 @@ if authentication_status:
                     st.success("Operazione registrata con successo!")
                     st.rerun()
 
-        # 5) Registro Operazioni
+        # ----------------------------- Registro Operazioni -----------------------------
         st.header("Registro Operazioni")
         if not user_data_df.empty:
             view_df = user_data_df.copy()
@@ -570,7 +565,6 @@ if authentication_status:
                 if to_delete.empty:
                     st.warning("Nessuna operazione selezionata per la cancellazione.")
                 else:
-                    # Normalizzazione & chiave di confronto
                     def _normalize(df: pd.DataFrame) -> pd.DataFrame:
                         out = df.copy()
                         out["date"] = pd.to_datetime(out["date"], errors="coerce")
@@ -614,10 +608,8 @@ if authentication_status:
     with tab_metrics:
         st.header("Metriche di Portafoglio e per Ticker")
 
-        # Costruzione tabelle KPI
         kpi_ticker, kpi_port = compute_kpi_tables(user_data_df, user_tickers_df)
 
-        # KPI di Portafoglio (metriche sintetiche)
         st.subheader("KPI di Portafoglio")
         if not kpi_port.empty:
             c1, c2, c3, c4 = st.columns(4)
@@ -633,7 +625,6 @@ if authentication_status:
             c7.metric("Utilization Portafoglio", format_pct_or_dash(kpi_port.iloc[0]["Utilization Portafoglio"]))
             st.caption(f"Tasso Reinvestimento Portafoglio: {format_pct_or_dash(kpi_port.iloc[0]['Tasso Reinvestimento Portafoglio'])}")
 
-        # KPI per Ticker (tabella dettagliata)
         st.subheader("KPI per Ticker (attivi)")
         if kpi_ticker.empty:
             st.info("Nessun ticker attivo o nessuna operazione registrata.")
@@ -659,7 +650,6 @@ if authentication_status:
             )
             st.dataframe(styled, use_container_width=True, height=min(600, len(kpi_show)*36+38))
 
-        # Trend mensile (ultimi 12 mesi)
         st.subheader("Trend Mensile (ultimi 12 mesi)")
         monthly = compute_monthly_trend(user_data_df)
         if monthly.empty:
@@ -679,5 +669,3 @@ elif authentication_status is False:
     st.error("Username/password non corretti")
 else:
     st.warning("Per favore, inserisci username e password")
-    # Registrazione runtime sconsigliata in produzione (manca persistenza esterna).
-    # Se necessario, implementare uno storage per nuove credenziali.
