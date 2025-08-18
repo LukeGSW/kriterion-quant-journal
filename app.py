@@ -5,8 +5,8 @@
 # - Gestione operazioni su Google Sheets (Foglio1)
 # - Gestione Tickers & Capitale Iniziale (worksheet "Tickers")
 # - Sezioni:
-#   1) Impostazioni Portafoglio (tickers + capitale iniziale) [NUOVO]
-#   2) Panoramica Portafoglio (configurato) [NUOVO]
+#   1) Impostazioni Portafoglio (tickers + capitale iniziale)
+#   2) Panoramica Portafoglio (configurato)
 #   3) Dashboard Riepilogo (storico operazioni)
 #   4) Aggiungi Nuova Operazione
 #   5) Registro Operazioni (cancellazione con match per contenuto)
@@ -406,11 +406,6 @@ if authentication_status:
                 st.warning("Nessuna operazione selezionata per la cancellazione.")
             else:
                 # Match per contenuto (chiave di confronto), non per indice
-                key_cols = [
-                    "username", "date", "ticker", "type",
-                    "premioIncassato", "premioReinvestito", "btdStandard", "btdBoost", "notes"
-                ]
-
                 def _normalize(df: pd.DataFrame) -> pd.DataFrame:
                     out = df.copy()
                     out["date"] = pd.to_datetime(out["date"], errors="coerce")
