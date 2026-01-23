@@ -1,5 +1,5 @@
-pandas==2.2.0
-streamlit>=1.32.0
+pandas
+streamlit
 streamlit-authenticator
 gspread
 gspread-dataframe
