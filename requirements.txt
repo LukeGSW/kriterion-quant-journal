@@ -3,4 +3,3 @@ streamlit>=1.32.0
 streamlit-authenticator
 gspread
 gspread-dataframe
-# Rimuovi qualsiasi riferimento ad altair<5
