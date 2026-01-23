@@ -1,6 +1,6 @@
 pandas==2.2.0
-streamlit==1.32.0
+streamlit>=1.32.0
 streamlit-authenticator
 gspread
 gspread-dataframe
-altair<5
+# Rimuovi qualsiasi riferimento ad altair<5
