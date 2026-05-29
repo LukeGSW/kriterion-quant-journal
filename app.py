@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import streamlit as st
+import streamlit_authenticator as stauth
 import pandas as pd
 from datetime import datetime
 import data_manager as dm
@@ -136,39 +137,25 @@ TICKERS_SHEET_TITLE = "Tickers"
 worksheet = dm.get_google_sheet(SHEET_NAME, WORKSHEET_TITLE) if "gcp_service_account" in st.secrets else None
 ws_tickers = dm.get_tickers_sheet(SHEET_NAME, TICKERS_SHEET_TITLE) if "gcp_service_account" in st.secrets else None
 
-# ------------------------ Autenticazione Nativa ------------------------
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
+# ------------------------ Autenticazione ------------------------
+try:
+    usernames = st.secrets["credentials"]["usernames"]
+    credentials = {"usernames": {}}
+    for uname, u in usernames.items():
+        credentials["usernames"][uname] = {"name": u["name"], "email": u["email"], "password": u["password"]}
+    cookie_conf = st.secrets["cookies"]
+    authenticator = stauth.Authenticate(credentials, cookie_conf["cookie_name"], cookie_conf["key"], cookie_conf["expiry_days"])
+except KeyError as e:
+    st.error(f"🚨 Errore di configurazione nei Secrets: manca la chiave {e}.")
+    st.stop()
+except Exception as e:
+    st.error(f"🚨 Errore inizializzazione autenticazione: {e}")
+    st.stop()
 
-if not st.session_state["logged_in"]:
-    st.title("📈 Diario di Bordo Quantitativo")
-    st.subheader("Accesso Riservato")
-    
-    with st.form("login_form"):
-        input_username = st.text_input("Username").strip()
-        input_password = st.text_input("Password", type="password").strip()
-        submit_button = st.form_submit_button("Accedi")
-        
-        if submit_button:
-            # Verifica se la sezione delle credenziali esiste nei Secrets
-            if "users" in st.secrets and input_username in st.secrets["users"]:
-                user_data = st.secrets["users"][input_username]
-                # Controllo password in chiaro (ideale per un diario personale)
-                if input_password == user_data["password"]:
-                    st.session_state["logged_in"] = True
-                    st.session_state["username"] = input_username
-                    st.session_state["name"] = user_data["name"]
-                    st.success("Accesso effettuato!")
-                    st.rerun()
-                else:
-                    st.error("Password errata.")
-            else:
-                st.error("Utente non autorizzato o credenziali non configurate.")
-    st.stop()  # Interrompe l'esecuzione dell'app se l'utente non è loggato
-
-# Recupero delle variabili di sessione per il resto dell'applicazione
-username = st.session_state["username"]
-name = st.session_state["name"]
+authenticator.login()
+name = st.session_state.get("name")
+authentication_status = st.session_state.get("authentication_status")
+username = st.session_state.get("username")
 
 # ------------------------ Metriche ------------------------
 def compute_aggregates(user_ops: pd.DataFrame) -> pd.DataFrame:
@@ -290,16 +277,11 @@ def compute_monthly_trend(user_ops: pd.DataFrame) -> pd.DataFrame:
 
 # ------------------------ App ------------------------
 if authentication_status:
-    # Sostituisci il vecchio "if authentication_status:" con questo:
-st.sidebar.title(f"Benvenuto, *{name}*")
-if st.sidebar.button("Logout"):
-    st.session_state["logged_in"] = False
-    st.session_state["username"] = None
-    st.session_state["name"] = None
-    st.rerun()
-st.sidebar.markdown("---")
+    st.sidebar.title(f"Benvenuto, *{name}*")
+    authenticator.logout("Logout", "sidebar")
+    st.sidebar.markdown("---")
 
-st.title("📈 Diario di Bordo Quantitativo")
+    st.title("📈 Diario di Bordo Quantitativo")
 
     if worksheet is None or ws_tickers is None:
         st.error("🚨 Connessione ai worksheet non riuscita. Verifica le credenziali GCP in secrets.")
